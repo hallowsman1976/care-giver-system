@@ -2267,6 +2267,33 @@ async function viewSettings(container) {
       <button onclick="runSetupSheets()" class="btn w-full h-11 rounded-xl bg-warning/10 text-warning font-500 flex items-center justify-center gap-2"><i data-lucide="wrench" class="w-5 h-5"></i> เรียก setupSheets()</button>
     </div>
 
+    <div class="bg-card rounded-2xl shadow-card p-5 mb-3">
+      <h3 class="font-600 text-ink mb-1 flex items-center gap-2"><i data-lucide="upload" class="w-5 h-5 text-primary"></i> นำเข้าข้อมูลจาก CSV</h3>
+      <p class="text-sm text-muted mb-4">นำเข้าทีละหลายรายการจากไฟล์ CSV (แถวแรกต้องเป็นหัวตาราง) — ตรวจสอบความถูกต้องก่อนบันทึก</p>
+
+      <div class="rounded-xl border border-line p-3 mb-3">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="font-500 text-ink flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-primary"></i> ผู้มีภาวะพึ่งพิง (Patients)</span>
+          <button onclick="downloadCsvTemplate('patients')" class="text-xs text-primary inline-flex items-center gap-1"><i data-lucide="file-down" class="w-3.5 h-3.5"></i> เทมเพลต</button>
+        </div>
+        <input id="ptCsvFile" type="file" accept=".csv,text/csv" class="block w-full text-sm text-muted file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-500 file:cursor-pointer mb-2">
+        <button onclick="importCsv('patients')" class="btn w-full h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้าผู้ป่วย</button>
+        <div id="ptCsvResult" class="mt-2"></div>
+        <p class="text-[11px] text-muted mt-2 leading-relaxed">คอลัมน์: ชื่อ-สกุล, เลขบัตรประชาชน, วันเกิด, เพศ, บ้านเลขที่, หมู่, ผู้ดูแล, เบอร์โทรผู้ดูแล</p>
+      </div>
+
+      <div class="rounded-xl border border-line p-3">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="font-500 text-ink flex items-center gap-2"><i data-lucide="user-cog" class="w-4 h-4 text-primary"></i> Care Giver (CareGivers)</span>
+          <button onclick="downloadCsvTemplate('caregivers')" class="text-xs text-primary inline-flex items-center gap-1"><i data-lucide="file-down" class="w-3.5 h-3.5"></i> เทมเพลต</button>
+        </div>
+        <input id="cgCsvFile" type="file" accept=".csv,text/csv" class="block w-full text-sm text-muted file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-500 file:cursor-pointer mb-2">
+        <button onclick="importCsv('caregivers')" class="btn w-full h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้า Care Giver</button>
+        <div id="cgCsvResult" class="mt-2"></div>
+        <p class="text-[11px] text-muted mt-2 leading-relaxed">คอลัมน์: ชื่อ-สกุล, เลขบัตรประชาชน, เบอร์โทร, บ้านเลขที่, หมู่, ชื่อผู้ใช้, รหัสผ่าน</p>
+      </div>
+    </div>
+
     <div class="bg-card rounded-2xl shadow-card p-5">
       <h3 class="font-600 text-ink mb-3 flex items-center gap-2"><i data-lucide="shield-check" class="w-5 h-5 text-success"></i> บัญชีผู้ดูแลระบบ</h3>
       <div class="text-sm space-y-1.5">
@@ -2295,6 +2322,153 @@ async function runSetupSheets() {
   if (!ok) return;
   const res = await api('setupSheets', {}, { loadingText: 'กำลังตั้งค่าชีต...' });
   if (res.success) alertSuccess('ตั้งค่าชีตเรียบร้อย: ' + ((res.data && res.data.sheets) || []).join(', '));
+}
+
+
+// ===============================
+// CSV IMPORT (ผู้ป่วย / Care Giver)
+// ===============================
+
+/** parser CSV รองรับ field ที่มีเครื่องหมายคำพูด ลูกน้ำ และขึ้นบรรทัดใหม่ */
+function parseCSV(text) {
+  text = String(text).replace(/^\uFEFF/, '');
+  const rows = []; let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* ข้าม */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+const PT_HEADER_MAP = {
+  'ชื่อ-สกุล': 'fullName', 'ชื่อ': 'fullName', 'ชื่อสกุล': 'fullName', 'fullname': 'fullName', 'name': 'fullName',
+  'เลขบัตรประชาชน': 'pid', 'บัตรประชาชน': 'pid', 'เลขบัตร': 'pid', 'pid': 'pid',
+  'วันเกิด': 'birthDate', 'birthdate': 'birthDate', 'dob': 'birthDate',
+  'เพศ': 'gender', 'gender': 'gender',
+  'บ้านเลขที่': 'houseNo', 'บ้าน': 'houseNo', 'houseno': 'houseNo',
+  'หมู่': 'moo', 'moo': 'moo',
+  'ผู้ดูแล': 'caregiverName', 'ชื่อผู้ดูแล': 'caregiverName', 'caregivername': 'caregiverName',
+  'เบอร์โทรผู้ดูแล': 'caregiverPhone', 'caregiverphone': 'caregiverPhone'
+};
+const CG_HEADER_MAP = {
+  'ชื่อ-สกุล': 'fullName', 'ชื่อ': 'fullName', 'ชื่อสกุล': 'fullName', 'fullname': 'fullName', 'name': 'fullName',
+  'เลขบัตรประชาชน': 'pid', 'บัตรประชาชน': 'pid', 'เลขบัตร': 'pid', 'pid': 'pid',
+  'เบอร์โทร': 'phone', 'โทรศัพท์': 'phone', 'phone': 'phone',
+  'บ้านเลขที่': 'houseNo', 'บ้าน': 'houseNo', 'houseno': 'houseNo',
+  'หมู่': 'moo', 'moo': 'moo',
+  'ชื่อผู้ใช้': 'username', 'username': 'username', 'user': 'username',
+  'รหัสผ่าน': 'password', 'password': 'password', 'pass': 'password'
+};
+
+function downloadCsvTemplate(kind) {
+  if (kind === 'patients') {
+    const cols = [
+      { label: 'ชื่อ-สกุล', key: 'fullName' }, { label: 'เลขบัตรประชาชน', key: 'pid' },
+      { label: 'วันเกิด', key: 'birthDate' }, { label: 'เพศ', key: 'gender' },
+      { label: 'บ้านเลขที่', key: 'houseNo' }, { label: 'หมู่', key: 'moo' },
+      { label: 'ผู้ดูแล', key: 'caregiverName' }, { label: 'เบอร์โทรผู้ดูแล', key: 'caregiverPhone' }
+    ];
+    const sample = [{ fullName: 'นายตัวอย่าง ใจดี', pid: '1000000000009', birthDate: '01/05/2500', gender: 'ชาย', houseNo: '99', moo: '4', caregiverName: 'นางสมศรี ใจดี', caregiverPhone: '0812345678' }];
+    exportCSV('template_patients.csv', cols, sample);
+  } else {
+    const cols = [
+      { label: 'ชื่อ-สกุล', key: 'fullName' }, { label: 'เลขบัตรประชาชน', key: 'pid' },
+      { label: 'เบอร์โทร', key: 'phone' }, { label: 'บ้านเลขที่', key: 'houseNo' },
+      { label: 'หมู่', key: 'moo' }, { label: 'ชื่อผู้ใช้', key: 'username' }, { label: 'รหัสผ่าน', key: 'password' }
+    ];
+    const sample = [{ fullName: 'นางสาวผู้ดูแล ตัวอย่าง', pid: '1000000000009', phone: '0898765432', houseNo: '12', moo: '3', username: 'cg_somsri', password: '123456' }];
+    exportCSV('template_caregivers.csv', cols, sample);
+  }
+}
+
+async function importCsv(kind) {
+  const fileId = kind === 'patients' ? 'ptCsvFile' : 'cgCsvFile';
+  const resId = kind === 'patients' ? 'ptCsvResult' : 'cgCsvResult';
+  const fileEl = $id(fileId);
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  if (!file) return alertError('กรุณาเลือกไฟล์ CSV ก่อน');
+
+  let text;
+  try { text = await file.text(); } catch (e) { return alertError('อ่านไฟล์ไม่สำเร็จ: ' + e.message); }
+  const rows = parseCSV(text);
+  if (rows.length < 2) return alertError('ไฟล์ว่างหรือไม่มีข้อมูล (ต้องมีหัวตาราง + ข้อมูลอย่างน้อย 1 แถว)');
+
+  const map = kind === 'patients' ? PT_HEADER_MAP : CG_HEADER_MAP;
+  const keys = rows[0].map(h => { const t = String(h).trim(); return map[t] || map[t.toLowerCase()] || null; });
+  if (!keys.includes('fullName') || !keys.includes('pid')) {
+    return alertError('ไม่พบคอลัมน์ที่จำเป็น (อย่างน้อยต้องมี "ชื่อ-สกุล" และ "เลขบัตรประชาชน") — ลองดาวน์โหลดเทมเพลตเพื่อดูรูปแบบ');
+  }
+
+  // แปลงเป็น object + ตรวจความถูกต้องฝั่ง client
+  const valid = [], invalid = [];
+  for (let r = 1; r < rows.length; r++) {
+    const o = {};
+    rows[r].forEach((cell, ci) => { const k = keys[ci]; if (k) o[k] = String(cell).trim(); });
+    const errs = [];
+    if (!o.fullName) errs.push('ไม่มีชื่อ-สกุล');
+    if (!feValidatePid(o.pid)) errs.push('เลขบัตรประชาชนไม่ถูกต้อง');
+    if (kind === 'caregivers') {
+      if (!feValidatePhone(o.phone)) errs.push('เบอร์โทรไม่ถูกต้อง');
+      if (!o.username) errs.push('ไม่มีชื่อผู้ใช้');
+      if (!o.password || o.password.length < 6) errs.push('รหัสผ่านต้อง ≥ 6 ตัว');
+    } else {
+      if (o.caregiverPhone && !feValidatePhone(o.caregiverPhone)) errs.push('เบอร์ผู้ดูแลไม่ถูกต้อง');
+    }
+    if (errs.length) invalid.push({ line: r + 1, name: o.fullName || '(ไม่มีชื่อ)', errs });
+    else valid.push(o);
+  }
+
+  if (!valid.length) { $id(resId).innerHTML = importSummaryHtml(0, [], invalid); refreshIcons(); return alertError('ไม่มีแถวที่ถูกต้องสำหรับนำเข้า'); }
+
+  const ok = await confirmDialog({
+    title: 'ยืนยันการนำเข้า?',
+    text: `ข้อมูลถูกต้อง ${valid.length} แถว` + (invalid.length ? ` · ข้ามที่ไม่ถูกต้อง ${invalid.length} แถว` : '') + ' — เริ่มนำเข้าเลยหรือไม่?',
+    confirmText: 'นำเข้า', icon: 'question'
+  });
+  if (!ok) return;
+
+  const action = kind === 'patients' ? 'createPatient' : 'createCareGiver';
+  let success = 0; const failed = [];
+  for (let i = 0; i < valid.length; i++) {
+    $id(resId).innerHTML = `<div class="flex items-center gap-2 text-sm text-muted"><span class="inline-block w-4 h-4 border-2 border-line border-t-primary rounded-full animate-spin"></span> กำลังนำเข้า ${i + 1}/${valid.length} ...</div>`;
+    try {
+      const res = await apiRaw(action, valid[i]);
+      if (res && res.success) success++;
+      else failed.push({ name: valid[i].fullName, msg: (res && res.message) || 'ไม่สำเร็จ' });
+    } catch (e) {
+      failed.push({ name: valid[i].fullName, msg: e.message });
+    }
+  }
+
+  $id(resId).innerHTML = importSummaryHtml(success, failed, invalid);
+  refreshIcons();
+  if (success) toast(`นำเข้าสำเร็จ ${success} รายการ`);
+}
+
+function importSummaryHtml(success, failed, invalid) {
+  failed = failed || []; invalid = invalid || [];
+  let html = `<div class="rounded-xl bg-subtle p-3 text-sm space-y-1">
+      <div class="flex items-center gap-2 text-success"><i data-lucide="check-circle-2" class="w-4 h-4"></i> นำเข้าสำเร็จ <span class="font-600">${success}</span> รายการ</div>`;
+  if (failed.length) {
+    html += `<div class="flex items-center gap-2 text-danger"><i data-lucide="x-circle" class="w-4 h-4"></i> ล้มเหลว ${failed.length} รายการ</div>
+      <ul class="list-disc pl-5 text-xs text-muted">${failed.slice(0, 8).map(f => `<li>${esc(f.name)} — ${esc(f.msg)}</li>`).join('')}${failed.length > 8 ? `<li>…อีก ${failed.length - 8} รายการ</li>` : ''}</ul>`;
+  }
+  if (invalid.length) {
+    html += `<div class="flex items-center gap-2 text-warning"><i data-lucide="alert-triangle" class="w-4 h-4"></i> ข้ามแถวที่ไม่ถูกต้อง ${invalid.length} แถว</div>
+      <ul class="list-disc pl-5 text-xs text-muted">${invalid.slice(0, 8).map(v => `<li>แถว ${v.line} (${esc(v.name)}) — ${esc(v.errs.join(', '))}</li>`).join('')}${invalid.length > 8 ? `<li>…อีก ${invalid.length - 8} แถว</li>` : ''}</ul>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 
