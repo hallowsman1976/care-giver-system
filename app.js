@@ -17,7 +17,7 @@
 const CONFIG = {
   // 🔴 วาง URL ของ Google Apps Script Web App ที่ Deploy แล้วตรงนี้
   // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx..../exec'
-  API_URL: 'https://script.google.com/macros/s/AKfycbwegFGFsmoOYVjXIcAim-Z6A6SL7NH3N0dO4jmsQVQzIY8a4J-FdQGncRCMhD9MUSplNg/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwvXs1IUVSwzYNC6i_UxZNcs-vlpo9uANaEpPyzXW_XROoOlZBX7cRemLSxdPs0kYaQ/exec',
 
   SESSION_KEY: 'care_session_v1',
   SYSTEM_NAME: 'ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน',
@@ -116,7 +116,7 @@ function confirmDialog(opts) {
  * ทำให้เบราว์เซอร์ไม่ส่ง OPTIONS preflight (ซึ่ง Apps Script จัดการไม่ได้)
  */
 async function apiRaw(action, data) {
-  if (!CONFIG.API_URL || CONFIG.API_URL === 'https://script.google.com/macros/s/AKfycbwegFGFsmoOYVjXIcAim-Z6A6SL7NH3N0dO4jmsQVQzIY8a4J-FdQGncRCMhD9MUSplNg/exec') {
+  if (!CONFIG.API_URL || CONFIG.API_URL === 'https://script.google.com/macros/s/AKfycbwvXs1IUVSwzYNC6i_UxZNcs-vlpo9uANaEpPyzXW_XROoOlZBX7cRemLSxdPs0kYaQ/exec') {
     throw new Error('ยังไม่ได้ตั้งค่า API_URL ใน app.js');
   }
   const res = await fetch(CONFIG.API_URL, {
