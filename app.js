@@ -186,6 +186,29 @@ function parseDate(value) {
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
+
+/**
+ * แปลงค่าเวลาให้เป็น HH:mm (เวลาไทย)
+ * รองรับทั้งกรณีเป็น "HH:mm" อยู่แล้ว และกรณีที่ Google Sheets
+ * แปลงช่องเวลาเป็นวันที่ epoch (เช่น 1899-12-30T02:30:56.000Z)
+ */
+function formatTime(value) {
+  if (value == null || value === '') return '';
+  const s = String(value).trim();
+  // เป็น HH:mm หรือ HH:mm:ss อยู่แล้ว (ไม่ใช่ ISO datetime)
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (m && s.indexOf('T') === -1) return m[1].padStart(2, '0') + ':' + m[2];
+  // เป็น ISO datetime → จัดรูปแบบเป็นเวลาไทย
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    try {
+      return d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false });
+    } catch (e) {
+      return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+    }
+  }
+  return s;
+}
 /** วันที่วันนี้รูปแบบ yyyy-MM-dd (ใช้กับ input[type=date]) */
 function todayISO() {
   const d = new Date();
@@ -1911,7 +1934,7 @@ function sectionLine(label, html) {
   return `<div><div class="text-xs text-muted mb-1">${esc(label)}</div><div class="text-sm text-ink">${html}</div></div>`;
 }
 function renderVisitCard(v) {
-  let inner = `<div class="text-sm text-muted">เวลา ${esc(v.startTime || '-')}${v.endTime ? (' - ' + esc(v.endTime)) : ''} น.</div>`;
+  let inner = `<div class="text-sm text-muted">เวลา ${esc(formatTime(v.startTime) || '-')}${v.endTime ? (' - ' + esc(formatTime(v.endTime))) : ''} น.</div>`;
   inner += `<div class="text-sm"><span class="text-muted">ผู้เยี่ยม:</span> <span class="font-500">${esc(v.caregiverName || '-')}</span>${v.caregiverPersonName ? ` · <span class="text-muted">ผู้ดูแล:</span> ${esc(v.caregiverPersonName)}${v.relationship ? ' (' + esc(v.relationship) + ')' : ''}` : ''}</div>`;
 
   if (v.bmi !== '' && v.bmi != null) {
@@ -1963,7 +1986,7 @@ function exportHistoryCSV() {
   const cols = [
     { label: 'ครั้งที่', key: 'visitNo' },
     { label: 'วันที่', value: v => formatThaiDate(v.visitDate) },
-    { label: 'เวลาเริ่ม', key: 'startTime' }, { label: 'เวลาสิ้นสุด', key: 'endTime' },
+    { label: 'เวลาเริ่ม', value: v => formatTime(v.startTime) }, { label: 'เวลาสิ้นสุด', value: v => formatTime(v.endTime) },
     { label: 'ผู้เยี่ยม', key: 'caregiverName' }, { label: 'ผู้ดูแล', key: 'caregiverPersonName' },
     { label: 'ความสัมพันธ์', key: 'relationship' },
     { label: 'น้ำหนัก', key: 'weight' }, { label: 'ส่วนสูง', key: 'height' },
@@ -2118,7 +2141,7 @@ function renderDailyReport() {
     return `<div class="bg-card rounded-2xl shadow-card p-4">
         <div class="flex items-center justify-between gap-2">
           <div class="font-500 text-ink truncate">${esc(v.patientName)}</div>
-          <span class="text-xs text-muted shrink-0">${esc(v.startTime || '')}${v.endTime ? '-' + esc(v.endTime) : ''}</span>
+          <span class="text-xs text-muted shrink-0">${esc(formatTime(v.startTime))}${v.endTime ? '-' + esc(formatTime(v.endTime)) : ''}</span>
         </div>
         <div class="text-xs text-muted mt-0.5">ครั้งที่ ${esc(v.visitNo)} · ผู้เยี่ยม ${esc(v.caregiverName)}</div>
         ${acts.length ? `<div class="mt-2">${acts.slice(0, 6).map(a => chip(a, '#64748B')).join('')}${acts.length > 6 ? `<span class="text-xs text-muted">+${acts.length - 6}</span>` : ''}</div>` : ''}
@@ -2136,7 +2159,7 @@ function exportDailyCSV() {
   if (!_dailyData || !_dailyData.visits.length) return alertError('ไม่มีข้อมูลสำหรับ Export');
   const cols = [
     { label: 'ครั้งที่', key: 'visitNo' }, { label: 'ผู้ป่วย', key: 'patientName' }, { label: 'PID', key: 'pid' },
-    { label: 'ผู้เยี่ยม', key: 'caregiverName' }, { label: 'เวลาเริ่ม', key: 'startTime' }, { label: 'เวลาสิ้นสุด', key: 'endTime' },
+    { label: 'ผู้เยี่ยม', key: 'caregiverName' }, { label: 'เวลาเริ่ม', value: v => formatTime(v.startTime) }, { label: 'เวลาสิ้นสุด', value: v => formatTime(v.endTime) },
     { label: 'BMI', key: 'bmi' }, { label: 'แปลผล', key: 'bmiResult' },
     { label: '9Q ผล', key: 'depression9QResult' }, { label: '8Q ผล', key: 'suicide8QResult' },
     { label: 'กิจกรรมประจำวัน', value: v => (v.dailyActivities || []).join(' | ') },
