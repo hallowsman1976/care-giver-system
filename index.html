@@ -3,43 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#2563EB" />
+  <meta name="theme-color" content="#d4a017" />
   <title>ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน</title>
 
-  <!-- ===== Google Font: Mitr ===== -->
+  <!-- ===== Google Font: Kanit ===== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
   <!-- ===== Tailwind CSS (CDN) ===== -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    // ตั้งค่าธีมสี ฟ้า-ขาว + ฟอนต์ Mitr
+    // ธีมโทนทอง-ครีม อิง CSS variables (รองรับโหมดมืด) + ฟอนต์ Kanit
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            primary:   '#2563EB',
-            secondary: '#60A5FA',
-            bg:        '#F8FAFC',
-            card:      '#FFFFFF',
-            ink:       '#1E293B',
-            muted:     '#64748B',
-            success:   '#22C55E',
-            warning:   '#F59E0B',
-            danger:    '#EF4444',
+            primary:     'rgb(var(--c-primary) / <alpha-value>)',
+            'primary-2': 'rgb(var(--c-primary2) / <alpha-value>)',
+            secondary:   'rgb(var(--c-secondary) / <alpha-value>)',
+            bg:          'rgb(var(--c-bg) / <alpha-value>)',
+            card:        'rgb(var(--c-card) / <alpha-value>)',
+            ink:         'rgb(var(--c-ink) / <alpha-value>)',
+            muted:       'rgb(var(--c-muted) / <alpha-value>)',
+            line:        'rgb(var(--c-border) / <alpha-value>)',
+            subtle:      'rgb(var(--c-bg2) / <alpha-value>)',
+            success:     'rgb(var(--c-success) / <alpha-value>)',
+            warning:     'rgb(var(--c-warning) / <alpha-value>)',
+            danger:      'rgb(var(--c-danger) / <alpha-value>)',
           },
-          fontFamily: {
-            sans: ['Mitr', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-          },
+          fontFamily: { sans: ['Kanit', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
           boxShadow: {
-            soft: '0 4px 20px -2px rgba(37, 99, 235, 0.10)',
-            card: '0 2px 12px -2px rgba(15, 23, 42, 0.08)',
+            soft: '0 4px 24px rgba(0,0,0,.10)',
+            card: '0 2px 16px rgba(0,0,0,.07)',
           },
-          borderRadius: {
-            xl: '0.9rem',
-            '2xl': '1.25rem',
-          }
+          borderRadius: { xl: '0.875rem', '2xl': '1rem' }
         }
       }
     }
@@ -56,46 +55,74 @@
   <!-- ===== Lucide Icons ===== -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
+  <!-- ===== Flatpickr (ปฏิทินเลือกวันที่ แสดงปี พ.ศ.) ===== -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/th.js"></script>
+
   <style>
-    html, body { font-family: 'Mitr', sans-serif; background: #F8FAFC; color: #1E293B; -webkit-tap-highlight-color: transparent; }
+    /* ===== ธีมสว่าง (โทนทอง-ครีม) ===== */
+    :root{
+      --c-primary:212 160 23; --c-primary2:184 134 11; --c-secondary:240 208 96;
+      --c-bg:250 250 247; --c-bg2:243 242 235; --c-card:255 255 255;
+      --c-border:232 228 212; --c-ink:26 26 26; --c-muted:85 85 80;
+      --c-success:22 163 74; --c-warning:217 119 6; --c-danger:220 38 38;
+      --shadow-md:0 4px 24px rgba(0,0,0,.10);
+    }
+    /* ===== ธีมมืด ===== */
+    html.dark{
+      --c-primary:240 192 64; --c-primary2:212 168 32; --c-secondary:96 72 0;
+      --c-bg:17 17 24; --c-bg2:26 26 36; --c-card:30 30 42;
+      --c-border:46 46 64; --c-ink:240 240 245; --c-muted:176 176 192;
+      --c-success:34 197 94; --c-warning:217 119 6; --c-danger:248 113 113;
+      --shadow-md:0 4px 24px rgba(0,0,0,.45);
+    }
+
+    html, body { font-family:'Kanit',sans-serif; background:rgb(var(--c-bg)); color:rgb(var(--c-ink)); -webkit-tap-highlight-color:transparent; transition:background .3s,color .3s; }
+    input, select, textarea { font-family:'Kanit',sans-serif; }
 
     /* ===== Loading Overlay ===== */
-    #loadingOverlay {
-      position: fixed; inset: 0; z-index: 9999;
-      background: rgba(248, 250, 252, 0.78); backdrop-filter: blur(2px);
-      display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
-    }
-    #loadingOverlay.show { display: flex; }
-    .spinner {
-      width: 52px; height: 52px; border-radius: 50%;
-      border: 5px solid #DBEAFE; border-top-color: #2563EB;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingOverlay { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.4); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; }
+    #loadingOverlay.show { display:flex; }
+    #loadingOverlay .lbox { background:rgb(var(--c-card)); border:1px solid rgb(var(--c-border)); border-radius:14px; padding:24px 32px; display:flex; flex-direction:column; align-items:center; gap:12px; box-shadow:var(--shadow-md); }
+    .spinner { width:46px; height:46px; border-radius:50%; border:5px solid rgb(var(--c-border)); border-top-color:rgb(var(--c-primary)); animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
     /* ===== Drawer (เมนูเต็มบนมือถือ) ===== */
-    #drawerBackdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; opacity: 0; pointer-events: none; transition: opacity .25s; }
-    #drawerBackdrop.show { opacity: 1; pointer-events: auto; }
-    #drawer { position: fixed; top: 0; left: 0; height: 100%; width: 84%; max-width: 320px; background:#fff; z-index: 61; transform: translateX(-100%); transition: transform .28s ease; box-shadow: 0 0 40px rgba(0,0,0,.2); }
-    #drawer.show { transform: translateX(0); }
+    #drawerBackdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:60; opacity:0; pointer-events:none; transition:opacity .25s; }
+    #drawerBackdrop.show { opacity:1; pointer-events:auto; }
+    #drawer { position:fixed; top:0; left:0; height:100%; width:84%; max-width:320px; background:rgb(var(--c-card)); z-index:61; transform:translateX(-100%); transition:transform .28s ease; box-shadow:0 0 40px rgba(0,0,0,.3); }
+    #drawer.show { transform:translateX(0); }
 
-    /* scrollbar บาง ๆ */
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 8px; }
+    ::-webkit-scrollbar { width:7px; height:7px; }
+    ::-webkit-scrollbar-thumb { background:rgb(var(--c-border)); border-radius:99px; }
 
-    .nav-item.active { background: #2563EB; color: #fff; }
-    .nav-item.active i { color: #fff; }
-    .bottom-item.active { color: #2563EB; }
-    .bottom-item.active i { color: #2563EB; }
+    /* ===== Nav active (โทนทอง) ===== */
+    .nav-item.active { background:rgb(var(--c-primary) / .14); color:rgb(var(--c-primary2)); font-weight:600; }
+    .nav-item.active i { color:rgb(var(--c-primary2)); }
+    .bottom-item.active { color:rgb(var(--c-primary2)); }
+    .bottom-item.active i { color:rgb(var(--c-primary2)); }
 
-    /* ปุ่มและ input ให้กดง่ายบนมือถือ */
-    .btn { transition: all .15s; }
-    .btn:active { transform: scale(.97); }
-    input, select, textarea { font-family: 'Mitr', sans-serif; }
+    .btn { transition:all .15s; }
+    .btn:active { transform:scale(.97); }
+
+    /* ===== Flatpickr ให้เข้ากับธีม + รองรับโหมดมืด ===== */
+    .flatpickr-calendar { background:rgb(var(--c-card)); color:rgb(var(--c-ink)); border:1px solid rgb(var(--c-border)); box-shadow:var(--shadow-md); }
+    .flatpickr-calendar.arrowTop:before, .flatpickr-calendar.arrowTop:after { border-bottom-color:rgb(var(--c-card)); }
+    .flatpickr-calendar.arrowBottom:before, .flatpickr-calendar.arrowBottom:after { border-top-color:rgb(var(--c-card)); }
+    .flatpickr-months .flatpickr-month, .flatpickr-current-month input.cur-year, .flatpickr-monthDropdown-months { color:rgb(var(--c-ink)); fill:rgb(var(--c-ink)); }
+    .flatpickr-monthDropdown-months { background:rgb(var(--c-card)); }
+    span.flatpickr-weekday { color:rgb(var(--c-muted)) !important; }
+    .flatpickr-day { color:rgb(var(--c-ink)); }
+    .flatpickr-day:hover, .flatpickr-day.prevMonthDay:hover, .flatpickr-day.nextMonthDay:hover { background:rgb(var(--c-bg2)); border-color:rgb(var(--c-bg2)); }
+    .flatpickr-day.today { border-color:rgb(var(--c-primary)); }
+    .flatpickr-day.selected, .flatpickr-day.selected:hover { background:rgb(var(--c-primary)); border-color:rgb(var(--c-primary)); color:#1a1000; }
+    .flatpickr-day.flatpickr-disabled, .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay { color:rgb(var(--c-muted)); opacity:.55; }
+    .flatpickr-prev-month svg, .flatpickr-next-month svg { fill:rgb(var(--c-muted)); }
 
     @media print {
-      #appHeader, #sidebar, #bottomNav, .no-print { display: none !important; }
-      #mainContent { margin: 0 !important; padding: 0 !important; }
+      #appHeader, #sidebar, #bottomNav, .no-print { display:none !important; }
+      #mainContent { margin:0 !important; padding:0 !important; }
     }
   </style>
 </head>
@@ -104,8 +131,10 @@
 
   <!-- ============ LOADING OVERLAY ============ -->
   <div id="loadingOverlay">
-    <div class="spinner"></div>
-    <div id="loadingText" class="text-primary font-medium text-sm">กำลังโหลด...</div>
+    <div class="lbox">
+      <div class="spinner"></div>
+      <div id="loadingText" class="text-primary font-medium text-sm">กำลังโหลด...</div>
+    </div>
   </div>
 
   <!-- ============ LOGIN VIEW ============ -->
@@ -125,7 +154,7 @@
           <div class="relative">
             <i data-lucide="user" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
             <input id="loginUsername" type="text" inputmode="text"
-              class="w-full h-12 pl-11 pr-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+              class="w-full h-12 pl-11 pr-3 rounded-xl border border-line focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
               placeholder="username" />
           </div>
         </div>
@@ -135,7 +164,7 @@
           <div class="relative">
             <i data-lucide="lock" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
             <input id="loginPassword" type="password"
-              class="w-full h-12 pl-11 pr-11 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+              class="w-full h-12 pl-11 pr-11 rounded-xl border border-line focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
               placeholder="••••••••" />
             <button type="button" id="togglePw" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted">
               <i data-lucide="eye" class="w-5 h-5"></i>
@@ -144,7 +173,7 @@
         </div>
 
         <button type="submit"
-          class="btn w-full h-12 rounded-xl bg-primary text-white font-500 shadow-soft hover:bg-blue-700 flex items-center justify-center gap-2">
+          class="btn w-full h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft hover:bg-primary-2 flex items-center justify-center gap-2">
           <i data-lucide="log-in" class="w-5 h-5"></i> เข้าสู่ระบบ
         </button>
       </form>
@@ -157,8 +186,8 @@
   <div id="appShell" class="hidden">
 
     <!-- Sidebar (Desktop) -->
-    <aside id="sidebar" class="hidden md:flex flex-col fixed top-0 left-0 h-full w-64 bg-card border-r border-slate-100 z-40">
-      <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-100">
+    <aside id="sidebar" class="hidden md:flex flex-col fixed top-0 left-0 h-full w-64 bg-card border-r border-line z-40">
+      <div class="h-16 flex items-center gap-2.5 px-5 border-b border-line">
         <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
           <i data-lucide="heart-handshake" class="w-5 h-5 text-white"></i>
         </div>
@@ -168,7 +197,7 @@
         </div>
       </div>
       <nav id="sidebarMenu" class="flex-1 overflow-y-auto p-3 space-y-1"></nav>
-      <div class="p-3 border-t border-slate-100">
+      <div class="p-3 border-t border-line">
         <button onclick="logout()" class="btn w-full h-11 rounded-xl bg-danger/10 text-danger font-500 flex items-center justify-center gap-2 hover:bg-danger/20">
           <i data-lucide="log-out" class="w-5 h-5"></i> ออกจากระบบ
         </button>
@@ -176,7 +205,7 @@
     </aside>
 
     <!-- Header -->
-    <header id="appHeader" class="sticky top-0 z-30 h-16 bg-card/90 backdrop-blur border-b border-slate-100 md:ml-64 flex items-center justify-between px-4">
+    <header id="appHeader" class="sticky top-0 z-30 h-16 bg-card/90 backdrop-blur border-b border-line md:ml-64 flex items-center justify-between px-4">
       <div class="flex items-center gap-2">
         <button class="md:hidden p-2 -ml-2 text-ink" onclick="openDrawer()">
           <i data-lucide="menu" class="w-6 h-6"></i>
@@ -184,6 +213,9 @@
         <h2 id="pageTitle" class="text-base sm:text-lg font-600 text-ink">Dashboard</h2>
       </div>
       <div class="flex items-center gap-2.5">
+        <button onclick="toggleTheme()" class="p-2 rounded-lg text-muted hover:bg-subtle" title="สลับโหมดสว่าง/มืด">
+          <i data-lucide="moon" id="themeIcon" class="w-5 h-5"></i>
+        </button>
         <div class="text-right leading-tight hidden sm:block">
           <div id="hdrName" class="text-sm font-500 text-ink">-</div>
           <div id="hdrRole" class="text-[11px] text-muted">-</div>
@@ -198,13 +230,13 @@
     </main>
 
     <!-- Bottom Navigation (Mobile) -->
-    <nav id="bottomNav" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-slate-100 h-16 flex items-stretch justify-around px-1"></nav>
+    <nav id="bottomNav" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-line h-16 flex items-stretch justify-around px-1"></nav>
   </div>
 
   <!-- ============ DRAWER (Mobile full menu) ============ -->
   <div id="drawerBackdrop" onclick="closeDrawer()"></div>
   <div id="drawer" class="flex flex-col">
-    <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100">
+    <div class="h-16 flex items-center justify-between px-5 border-b border-line">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
           <i data-lucide="heart-handshake" class="w-5 h-5 text-white"></i>
@@ -214,7 +246,7 @@
       <button onclick="closeDrawer()" class="p-2 text-muted"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
     <nav id="drawerMenu" class="flex-1 overflow-y-auto p-3 space-y-1"></nav>
-    <div class="p-3 border-t border-slate-100">
+    <div class="p-3 border-t border-line">
       <button onclick="logout()" class="btn w-full h-11 rounded-xl bg-danger/10 text-danger font-500 flex items-center justify-center gap-2">
         <i data-lucide="log-out" class="w-5 h-5"></i> ออกจากระบบ
       </button>
