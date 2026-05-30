@@ -17,7 +17,7 @@
 const CONFIG = {
   // 🔴 วาง URL ของ Google Apps Script Web App ที่ Deploy แล้วตรงนี้
   // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx..../exec'
-  API_URL: 'https://script.google.com/macros/s/AKfycbwvXs1IUVSwzYNC6i_UxZNcs-vlpo9uANaEpPyzXW_XROoOlZBX7cRemLSxdPs0kYaQ/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwegFGFsmoOYVjXIcAim-Z6A6SL7NH3N0dO4jmsQVQzIY8a4J-FdQGncRCMhD9MUSplNg/exec',
 
   SESSION_KEY: 'care_session_v1',
   SYSTEM_NAME: 'ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน',
@@ -116,7 +116,7 @@ function confirmDialog(opts) {
  * ทำให้เบราว์เซอร์ไม่ส่ง OPTIONS preflight (ซึ่ง Apps Script จัดการไม่ได้)
  */
 async function apiRaw(action, data) {
-  if (!CONFIG.API_URL || CONFIG.API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+  if (!CONFIG.API_URL || CONFIG.API_URL === 'https://script.google.com/macros/s/AKfycbwegFGFsmoOYVjXIcAim-Z6A6SL7NH3N0dO4jmsQVQzIY8a4J-FdQGncRCMhD9MUSplNg/exec') {
     throw new Error('ยังไม่ได้ตั้งค่า API_URL ใน app.js');
   }
   const res = await fetch(CONFIG.API_URL, {
@@ -190,6 +190,54 @@ function parseDate(value) {
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+
+// ===============================
+// DATE PICKER (Flatpickr แสดงปี พ.ศ.) + THEME
+// ===============================
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const DATE_CLS_LG = 'w-full h-12 px-3.5 rounded-xl border border-line bg-bg text-ink outline-none focus:border-primary cursor-pointer';
+const DATE_CLS_SM = 'w-full h-11 px-3 rounded-xl border border-line bg-bg text-ink outline-none focus:border-primary cursor-pointer';
+
+/**
+ * ติดตั้ง Flatpickr บนช่องวันที่ — เก็บค่าจริงเป็น Y-m-d (ค.ศ.) แต่แสดงผลเป็นปี พ.ศ.
+ * @param {string} id  id ของ input
+ * @param {object} opts  ตัวเลือกเพิ่มเติม (เช่น onChange, altInputClass)
+ */
+function fpInit(id, opts) {
+  const el = $id(id);
+  if (!el || !window.flatpickr) return;
+  if (el._flatpickr) el._flatpickr.destroy();
+  flatpickr(el, Object.assign({
+    locale: (window.flatpickr && flatpickr.l10ns && flatpickr.l10ns.th) ? 'th' : 'default',
+    dateFormat: 'Y-m-d',         // ค่าที่เก็บจริง (ส่งให้ backend)
+    altInput: true,
+    altFormat: 'PHT',            // sentinel → จัดรูปแบบ พ.ศ. เองใน formatDate
+    altInputClass: DATE_CLS_LG,
+    disableMobile: true,         // ใช้ปฏิทิน Flatpickr บนมือถือเพื่อให้แสดงปี พ.ศ. ได้
+    formatDate: (date, format) => {
+      if (format === 'PHT') {
+        const d = String(date.getDate()).padStart(2, '0');
+        const m = THAI_MONTHS_SHORT[date.getMonth()];
+        const y = date.getFullYear() + 543;
+        return `${d} ${m} ${y}`;
+      }
+      return flatpickr.formatDate(date, format);
+    }
+  }, opts || {}));
+}
+
+/** ใช้ธีม (สว่าง/มืด) + สลับไอคอน */
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  const ic = $id('themeIcon');
+  if (ic) { ic.setAttribute('data-lucide', t === 'dark' ? 'sun' : 'moon'); refreshIcons(); }
+}
+function toggleTheme() {
+  const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+  localStorage.setItem('care_theme', next);
+  applyTheme(next);
 }
 
 
@@ -299,7 +347,7 @@ function buildLayout() {
 function navButtonHtml(m, inDrawer) {
   const onclick = inDrawer ? `navigate('${m.key}'); closeDrawer();` : `navigate('${m.key}')`;
   return `<button data-nav="${m.key}" onclick="${onclick}"
-      class="nav-item w-full h-11 px-3 rounded-xl flex items-center gap-3 text-ink font-400 hover:bg-slate-100 text-left">
+      class="nav-item w-full h-11 px-3 rounded-xl flex items-center gap-3 text-ink font-400 hover:bg-subtle text-left">
       <i data-lucide="${m.icon}" class="w-5 h-5 text-muted"></i>
       <span class="text-sm">${esc(m.label)}</span>
     </button>`;
@@ -442,7 +490,7 @@ function renderMemberDashboard(d) {
   return `
     <div class="grid grid-cols-2 gap-3 mb-5">${cards}</div>
     <div class="grid grid-cols-2 gap-3 mb-5">
-      <button onclick="navigate('visitForm')" class="btn h-14 rounded-2xl bg-primary text-white font-500 flex items-center justify-center gap-2 shadow-soft">
+      <button onclick="navigate('visitForm')" class="btn h-14 rounded-2xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2 shadow-soft">
         <i data-lucide="file-plus-2" class="w-5 h-5"></i> บันทึกการเยี่ยม
       </button>
       <button onclick="navigate('assigned')" class="btn h-14 rounded-2xl bg-card text-primary border border-primary/20 font-500 flex items-center justify-center gap-2">
@@ -456,7 +504,7 @@ function renderMemberDashboard(d) {
 function recentCasesCard(title, items, showCaregiver) {
   const rows = items.length ? items.map(it => `
     <button onclick="navigate('history', { patientId: '${esc(it.patientId)}' })"
-      class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 text-left border border-slate-100">
+      class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-subtle text-left border border-line">
       <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-600 shrink-0">
         ${esc((it.patientName || '?').charAt(0))}
       </div>
@@ -481,9 +529,9 @@ function skeletonGrid(n) {
   let cards = '';
   for (let i = 0; i < n; i++) {
     cards += `<div class="bg-card rounded-2xl shadow-card p-4 animate-pulse">
-        <div class="w-12 h-12 rounded-xl bg-slate-100 mb-3"></div>
-        <div class="h-6 w-12 bg-slate-100 rounded mb-2"></div>
-        <div class="h-3 w-20 bg-slate-100 rounded"></div>
+        <div class="w-12 h-12 rounded-xl bg-subtle mb-3"></div>
+        <div class="h-6 w-12 bg-subtle rounded mb-2"></div>
+        <div class="h-3 w-20 bg-subtle rounded"></div>
       </div>`;
   }
   return `<div class="grid grid-cols-2 lg:grid-cols-3 gap-3">${cards}</div>`;
@@ -508,12 +556,12 @@ function showModal(opts) {
     <div class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
       <div class="absolute inset-0 bg-slate-900/50" onclick="closeModal()"></div>
       <div class="relative bg-card w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-soft max-h-[92vh] flex flex-col">
-        <div class="flex items-center justify-between px-5 h-14 border-b border-slate-100 shrink-0">
+        <div class="flex items-center justify-between px-5 h-14 border-b border-line shrink-0">
           <h3 class="font-600 text-ink">${esc(opts.title || '')}</h3>
           <button onclick="closeModal()" class="p-2 -mr-2 text-muted"><i data-lucide="x" class="w-5 h-5"></i></button>
         </div>
         <div class="overflow-y-auto p-5 flex-1">${opts.body || ''}</div>
-        ${opts.footer ? `<div class="px-5 py-3 border-t border-slate-100 shrink-0">${opts.footer}</div>` : ''}
+        ${opts.footer ? `<div class="px-5 py-3 border-t border-line shrink-0">${opts.footer}</div>` : ''}
       </div>
     </div>`;
   refreshIcons();
@@ -523,8 +571,8 @@ function closeModal() { const r = $id('modalRoot'); if (r) r.innerHTML = ''; }
 
 function modalFooter(submitLabel, submitFn) {
   return `<div class="flex gap-2">
-      <button onclick="closeModal()" class="btn flex-1 h-11 rounded-xl bg-slate-100 text-ink font-500">ยกเลิก</button>
-      <button onclick="${submitFn}" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500">${esc(submitLabel)}</button>
+      <button onclick="closeModal()" class="btn flex-1 h-11 rounded-xl bg-subtle text-ink font-500">ยกเลิก</button>
+      <button onclick="${submitFn}" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500">${esc(submitLabel)}</button>
     </div>`;
 }
 
@@ -549,7 +597,7 @@ function debounce(fn, ms) {
 }
 function statusBadge(status) {
   const active = String(status).toLowerCase() === 'active';
-  return `<span class="px-2.5 py-1 rounded-full text-[11px] font-500 ${active ? 'bg-success/10 text-success' : 'bg-slate-100 text-muted'}">${active ? 'ใช้งาน' : 'ระงับ'}</span>`;
+  return `<span class="px-2.5 py-1 rounded-full text-[11px] font-500 ${active ? 'bg-success/10 text-success' : 'bg-subtle text-muted'}">${active ? 'ใช้งาน' : 'ระงับ'}</span>`;
 }
 function emptyState(text) {
   return `<div class="bg-card rounded-2xl shadow-card p-10 text-center text-muted">
@@ -566,10 +614,10 @@ function listToolbar(o) {
      <div class="relative flex-1">
        <i data-lucide="search" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
        <input id="${o.searchId}" type="text" placeholder="${esc(o.placeholder)}"
-         class="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 focus:border-primary outline-none">
+         class="w-full h-11 pl-10 pr-3 rounded-xl border border-line focus:border-primary outline-none">
      </div>
      ${o.extra || ''}
-     <button onclick="${o.addFn}" class="btn h-11 px-4 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2 shrink-0">
+     <button onclick="${o.addFn}" class="btn h-11 px-4 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2 shrink-0">
        <i data-lucide="plus" class="w-5 h-5"></i> ${esc(o.addLabel)}
      </button>
    </div>`;
@@ -652,7 +700,7 @@ function renderCaregiverList() {
 
   // ตาราง (เดสก์ท็อป)
   const trs = rows.map(c => `
-    <tr class="border-t border-slate-100 hover:bg-slate-50">
+    <tr class="border-t border-line hover:bg-subtle">
       <td class="py-3 px-3 font-500 text-primary">${esc(c.caregiverCode)}</td>
       <td class="py-3 px-3">${esc(c.fullName)}</td>
       <td class="py-3 px-3">${esc(c.phone)}</td>
@@ -668,7 +716,7 @@ function renderCaregiverList() {
     <div class="md:hidden space-y-3">${cards}</div>
     <div class="hidden md:block bg-card rounded-2xl shadow-card overflow-hidden">
       <table class="w-full text-sm">
-        <thead><tr class="bg-slate-50 text-muted text-left">
+        <thead><tr class="bg-subtle text-muted text-left">
           <th class="py-3 px-3 font-500">รหัส</th><th class="py-3 px-3 font-500">ชื่อ-สกุล</th>
           <th class="py-3 px-3 font-500">เบอร์โทร</th><th class="py-3 px-3 font-500">บ้าน/หมู่</th>
           <th class="py-3 px-3 font-500">สถานะ</th><th class="py-3 px-3 font-500 text-right">จัดการ</th>
@@ -745,7 +793,7 @@ async function viewPatients(container) {
   container.innerHTML = listToolbar({
     searchId: 'ptSearch', placeholder: 'ค้นหาชื่อ / เลขบัตร / บ้าน',
     addLabel: 'เพิ่ม', addFn: 'ptAdd()',
-    extra: `<select id="ptMoo" class="h-11 px-3 rounded-xl border border-slate-200 bg-white text-ink"><option value="">ทุกหมู่</option></select>`
+    extra: `<select id="ptMoo" class="h-11 px-3 rounded-xl border border-line bg-card text-ink"><option value="">ทุกหมู่</option></select>`
   }) + `<div id="ptList"></div>`;
   refreshIcons();
   $id('ptSearch').addEventListener('input', debounce(renderPatientList, 200));
@@ -788,7 +836,7 @@ function renderPatientList() {
   const cards = rows.map(p => `
     <div class="bg-card rounded-2xl shadow-card p-4">
       <div class="flex items-start gap-3">
-        <img src="${esc(p.imageUrl)}" alt="" class="w-14 h-14 rounded-xl object-cover bg-slate-100 shrink-0" />
+        <img src="${esc(p.imageUrl)}" alt="" class="w-14 h-14 rounded-xl object-cover bg-subtle shrink-0" />
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between gap-2">
             <div class="font-500 text-ink truncate">${esc(p.fullName)}</div>
@@ -802,10 +850,10 @@ function renderPatientList() {
     </div>`).join('');
 
   const trs = rows.map(p => `
-    <tr class="border-t border-slate-100 hover:bg-slate-50">
+    <tr class="border-t border-line hover:bg-subtle">
       <td class="py-2.5 px-3">${esc(p.no || '-')}</td>
       <td class="py-2.5 px-3"><div class="flex items-center gap-2">
-        <img src="${esc(p.imageUrl)}" class="w-9 h-9 rounded-lg object-cover bg-slate-100" /><span class="font-500">${esc(p.fullName)}</span></div></td>
+        <img src="${esc(p.imageUrl)}" class="w-9 h-9 rounded-lg object-cover bg-subtle" /><span class="font-500">${esc(p.fullName)}</span></div></td>
       <td class="py-2.5 px-3">${esc(p.gender || '-')} / ${p.age !== '' ? esc(p.age) : '-'} ปี</td>
       <td class="py-2.5 px-3">${esc(p.houseNo || '-')} / ${esc(p.moo || '-')}</td>
       <td class="py-2.5 px-3">${statusBadge(p.status)}</td>
@@ -816,7 +864,7 @@ function renderPatientList() {
     <div class="md:hidden space-y-3">${cards}</div>
     <div class="hidden md:block bg-card rounded-2xl shadow-card overflow-x-auto">
       <table class="w-full text-sm min-w-[640px]">
-        <thead><tr class="bg-slate-50 text-muted text-left">
+        <thead><tr class="bg-subtle text-muted text-left">
           <th class="py-3 px-3 font-500">ลำดับ</th><th class="py-3 px-3 font-500">ชื่อ-สกุล</th>
           <th class="py-3 px-3 font-500">เพศ/อายุ</th><th class="py-3 px-3 font-500">บ้าน/หมู่</th>
           <th class="py-3 px-3 font-500">สถานะ</th><th class="py-3 px-3 font-500">จัดการ</th>
@@ -834,8 +882,8 @@ function ptFormHtml(p) {
       <div>
         <label class="block text-sm text-muted mb-1.5">รูปภาพ (ถ้าไม่มีระบบจะใช้ Avatar)</label>
         <div class="flex items-center gap-3">
-          <img id="ptPhotoPreview" src="${esc(img)}" class="w-16 h-16 rounded-xl object-cover bg-slate-100 ${img ? '' : 'hidden'}" />
-          <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-slate-100 text-ink font-500 flex items-center gap-2">
+          <img id="ptPhotoPreview" src="${esc(img)}" class="w-16 h-16 rounded-xl object-cover bg-subtle ${img ? '' : 'hidden'}" />
+          <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2">
             <i data-lucide="image-plus" class="w-5 h-5"></i> เลือกรูป
             <input type="file" accept="image/*" class="hidden" onchange="ptPhotoChange(event)">
           </label>
@@ -844,7 +892,7 @@ function ptFormHtml(p) {
       ${inputField('ptFullName', 'ชื่อ-สกุล *', 'text', p ? p.fullName : '')}
       ${inputField('ptPid', 'เลขบัตรประชาชน (13 หลัก) *', 'text', p ? p.pid : '', 'inputmode="numeric" maxlength="13"')}
       <div class="grid grid-cols-2 gap-3">
-        ${inputField('ptBirth', 'วันเกิด', 'date', p ? toISODate(p.birthDate) : '')}
+        ${inputField('ptBirth', 'วันเกิด', 'text', p ? toISODate(p.birthDate) : '')}
         ${selectField('ptGender', 'เพศ', [['', '-'], ['ชาย', 'ชาย'], ['หญิง', 'หญิง']], p ? p.gender : '')}
       </div>
       <div class="grid grid-cols-2 gap-3">
@@ -867,12 +915,14 @@ function ptPhotoChange(e) {
 function ptAdd() {
   _ptPhoto = { file: null };
   showModal({ title: 'เพิ่มผู้มีภาวะพึ่งพิง', body: ptFormHtml(null), footer: modalFooter('บันทึก', "ptSubmit('')") });
+  fpInit('ptBirth');
 }
 function ptEdit(id) {
   const p = _patients.find(x => x.patientId === id);
   if (!p) return;
   _ptPhoto = { file: null };
   showModal({ title: 'แก้ไขข้อมูลผู้พึ่งพิง', body: ptFormHtml(p), footer: modalFooter('บันทึก', `ptSubmit('${esc(id)}')`) });
+  fpInit('ptBirth');
 }
 async function ptSubmit(editId) {
   const val = id => ($id(id) ? $id(id).value.trim() : '');
@@ -915,12 +965,12 @@ async function ptDelete(id) {
 function ptView(id) {
   const p = _patients.find(x => x.patientId === id);
   if (!p) return;
-  const row = (label, val) => `<div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-muted text-sm">${esc(label)}</span><span class="text-ink text-sm font-500 text-right">${esc(val || '-')}</span></div>`;
+  const row = (label, val) => `<div class="flex justify-between gap-3 py-2 border-b border-line"><span class="text-muted text-sm">${esc(label)}</span><span class="text-ink text-sm font-500 text-right">${esc(val || '-')}</span></div>`;
   showModal({
     title: 'ข้อมูลผู้มีภาวะพึ่งพิง',
     body: `
       <div class="flex flex-col items-center mb-4">
-        <img src="${esc(p.imageUrl)}" class="w-24 h-24 rounded-2xl object-cover bg-slate-100 mb-2" />
+        <img src="${esc(p.imageUrl)}" class="w-24 h-24 rounded-2xl object-cover bg-subtle mb-2" />
         <div class="font-600 text-ink">${esc(p.fullName)}</div>
         <div class="text-xs text-primary">${esc(p.patientId)}</div>
       </div>
@@ -948,9 +998,9 @@ async function ptAssign(id) {
   const opts = cgs.map(c => `<option value="${esc(c.caregiverCode)}">${esc(c.caregiverCode)} · ${esc(c.fullName)}</option>`).join('');
   showModal({
     title: 'มอบหมายการดูแล',
-    body: `<div class="mb-3 p-3 bg-slate-50 rounded-xl text-sm"><span class="text-muted">ผู้ป่วย: </span><span class="font-500">${esc(p.fullName)}</span></div>
+    body: `<div class="mb-3 p-3 bg-subtle rounded-xl text-sm"><span class="text-muted">ผู้ป่วย: </span><span class="font-500">${esc(p.fullName)}</span></div>
       <label class="block text-sm text-muted mb-1.5">เลือก Care Giver</label>
-      <select id="assignCg" class="w-full h-12 px-3 rounded-xl border border-slate-200 bg-white">${opts}</select>
+      <select id="assignCg" class="w-full h-12 px-3 rounded-xl border border-line bg-card">${opts}</select>
       <p class="text-xs text-muted mt-2">หมายเหตุ: การมอบหมายใหม่จะแทนที่ผู้ดูแลคนเดิมของผู้ป่วยรายนี้</p>`,
     footer: modalFooter('มอบหมาย', `ptAssignConfirm('${esc(id)}')`)
   });
@@ -969,7 +1019,7 @@ function inputField(id, label, type, value, extraAttr) {
   return `<div>
       <label class="block text-sm text-muted mb-1.5">${esc(label)}</label>
       <input id="${id}" type="${type || 'text'}" value="${esc(value || '')}" ${extraAttr || ''}
-        class="w-full h-12 px-3.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-slate-100 disabled:text-muted">
+        class="w-full h-12 px-3.5 rounded-xl border border-line focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-subtle disabled:text-muted">
     </div>`;
 }
 function selectField(id, label, options, selected) {
@@ -980,7 +1030,7 @@ function selectField(id, label, options, selected) {
   }).join('');
   return `<div>
       <label class="block text-sm text-muted mb-1.5">${esc(label)}</label>
-      <select id="${id}" class="w-full h-12 px-3 rounded-xl border border-slate-200 bg-white focus:border-primary outline-none">${opts}</select>
+      <select id="${id}" class="w-full h-12 px-3 rounded-xl border border-line bg-card focus:border-primary outline-none">${opts}</select>
     </div>`;
 }
 /** แปลงค่าวันที่ให้เป็น yyyy-MM-dd สำหรับ input[type=date] */
@@ -1002,9 +1052,9 @@ async function viewAssign(container) {
     <div class="flex flex-col sm:flex-row gap-2 mb-4">
       <div class="relative flex-1">
         <i data-lucide="search" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
-        <input id="asSearch" type="text" placeholder="ค้นหาชื่อ / เลขบัตร" class="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 focus:border-primary outline-none">
+        <input id="asSearch" type="text" placeholder="ค้นหาชื่อ / เลขบัตร" class="w-full h-11 pl-10 pr-3 rounded-xl border border-line focus:border-primary outline-none">
       </div>
-      <select id="asFilter" class="h-11 px-3 rounded-xl border border-slate-200 bg-white">
+      <select id="asFilter" class="h-11 px-3 rounded-xl border border-line bg-card">
         <option value="">ทั้งหมด</option>
         <option value="assigned">มอบหมายแล้ว</option>
         <option value="unassigned">ยังไม่มอบหมาย</option>
@@ -1043,14 +1093,14 @@ function renderAssignList() {
   $id('asList').innerHTML = `<div class="space-y-3">` + rows.map(p => {
     const a = _assignMap[p.patientId];
     return `<div class="bg-card rounded-2xl shadow-card p-4 flex items-center gap-3">
-        <img src="${esc(p.imageUrl)}" class="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0">
+        <img src="${esc(p.imageUrl)}" class="w-12 h-12 rounded-xl object-cover bg-subtle shrink-0">
         <div class="flex-1 min-w-0">
           <div class="font-500 text-ink truncate">${esc(p.fullName)}</div>
           <div class="text-xs mt-0.5 ${a ? 'text-success' : 'text-warning'}">
             ${a ? ('ผู้ดูแล: ' + esc(a.caregiverName) + ' · ' + esc(a.caregiverCode)) : 'ยังไม่มอบหมาย'}</div>
         </div>
         <button onclick="ptAssign('${esc(p.patientId)}')"
-          class="btn h-10 px-3 rounded-xl text-sm font-500 flex items-center gap-1.5 shrink-0 ${a ? 'bg-slate-100 text-ink' : 'bg-primary text-white'}">
+          class="btn h-10 px-3 rounded-xl text-sm font-500 flex items-center gap-1.5 shrink-0 ${a ? 'bg-subtle text-ink' : 'bg-primary text-[#1a1000]'}">
           <i data-lucide="${a ? 'repeat' : 'user-plus'}" class="w-4 h-4"></i> ${a ? 'เปลี่ยน' : 'มอบหมาย'}
         </button>
       </div>`;
@@ -1157,8 +1207,8 @@ async function viewVisitForm(container, params) {
     </div>
     <div class="space-y-2">${list.map(p => `
       <button onclick="navigate('visitForm', { patientId: '${esc(p.patientId)}' })"
-        class="w-full bg-card rounded-2xl shadow-card p-3 flex items-center gap-3 text-left hover:bg-slate-50">
-        <img src="${esc(p.imageUrl)}" class="w-11 h-11 rounded-xl object-cover bg-slate-100 shrink-0">
+        class="w-full bg-card rounded-2xl shadow-card p-3 flex items-center gap-3 text-left hover:bg-subtle">
+        <img src="${esc(p.imageUrl)}" class="w-11 h-11 rounded-xl object-cover bg-subtle shrink-0">
         <div class="flex-1 min-w-0"><div class="font-500 text-ink truncate">${esc(p.patientName || p.fullName)}</div>
           <div class="text-xs text-muted">${esc(p.patientId)} · บ้าน ${esc(p.houseNo || '-')} หมู่ ${esc(p.moo || '-')}</div></div>
         <i data-lucide="chevron-right" class="w-5 h-5 text-muted shrink-0"></i>
@@ -1177,11 +1227,11 @@ async function loadVisitForm(container, patientId) {
 
   container.innerHTML = `
     <!-- หัวข้อผู้ป่วย -->
-    <div class="bg-primary text-white rounded-2xl shadow-soft p-4 mb-3 flex items-center gap-3">
-      <img src="${esc(p.imageUrl)}" class="w-14 h-14 rounded-xl object-cover bg-white/20 shrink-0">
+    <div class="bg-primary text-[#1a1000] rounded-2xl shadow-soft p-4 mb-3 flex items-center gap-3">
+      <img src="${esc(p.imageUrl)}" class="w-14 h-14 rounded-xl object-cover bg-black/10 shrink-0">
       <div class="min-w-0">
         <div class="font-600 truncate">${esc(p.fullName)}</div>
-        <div class="text-xs text-white/80">${esc(p.patientId)} · อายุ ${p.age !== '' ? esc(p.age) : '-'} ปี · ครั้งที่เยี่ยม ${nextNo}</div>
+        <div class="text-xs text-[#1a1000]/70">${esc(p.patientId)} · อายุ ${p.age !== '' ? esc(p.age) : '-'} ปี · ครั้งที่เยี่ยม ${nextNo}</div>
       </div>
     </div>
 
@@ -1189,9 +1239,9 @@ async function loadVisitForm(container, patientId) {
       ${formSection(1, 'ข้อมูลการเยี่ยม', `
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block text-sm text-muted mb-1.5">ครั้งที่เยี่ยม</label>
-            <input value="${nextNo}" disabled class="w-full h-12 px-3.5 rounded-xl border border-slate-200 bg-slate-100 text-ink font-500"></div>
+            <input value="${nextNo}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink font-500"></div>
           <div><label class="block text-sm text-muted mb-1.5">วันที่เยี่ยม</label>
-            <input id="vDate" type="date" value="${today}" oninput="updateDateTH()" class="w-full h-12 px-3 rounded-xl border border-slate-200 outline-none focus:border-primary"></div>
+            <input id="vDate" type="text" value="${today}" class="w-full h-12 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
         </div>
         <div class="text-xs text-muted mt-1">วันที่ (พ.ศ.): <span id="vDateTH" class="font-500 text-ink">${formatThaiDate(today)}</span></div>
         <div class="grid grid-cols-2 gap-3 mt-3">
@@ -1199,7 +1249,7 @@ async function loadVisitForm(container, patientId) {
           ${inputField('vEnd', 'เวลาสิ้นสุด', 'time', '')}
         </div>
         <div class="mt-3"><label class="block text-sm text-muted mb-1.5">ผู้เยี่ยม</label>
-          <input value="${esc(visitor)}" disabled class="w-full h-12 px-3.5 rounded-xl border border-slate-200 bg-slate-100 text-ink"></div>
+          <input value="${esc(visitor)}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink"></div>
         ${inputFieldWrap(`<div class="mt-3">${inputField('vCaregiverPerson', 'ชื่อผู้ดูแล (ในครอบครัว)', 'text', p.caregiverName || '')}</div>`)}
         <div class="mt-3">${selectField('vRelation', 'ความสัมพันธ์', [['', '-']].concat(RELATIONSHIPS.map(r => [r, r])), '')}</div>
       `, { open: true })}
@@ -1211,9 +1261,9 @@ async function loadVisitForm(container, patientId) {
         </div>
         <div class="grid grid-cols-2 gap-3 mt-3">
           <div><label class="block text-sm text-muted mb-1.5">BMI</label>
-            <input id="vBmi" disabled class="w-full h-12 px-3.5 rounded-xl border border-slate-200 bg-slate-100 font-500"></div>
+            <input id="vBmi" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle font-500"></div>
           <div><label class="block text-sm text-muted mb-1.5">แปลผล</label>
-            <div id="vBmiResult" class="w-full h-12 px-3.5 rounded-xl border border-slate-200 bg-slate-100 flex items-center font-500 text-primary">-</div></div>
+            <div id="vBmiResult" class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle flex items-center font-500 text-primary">-</div></div>
         </div>
       `)}
 
@@ -1243,13 +1293,13 @@ async function loadVisitForm(container, patientId) {
         ${toggleSwitch('olderImageEnabled', 'แนบรูปผู้มีภาวะพึ่งพิง', 'toggleImageSection()')}
         <div id="olderImageField" class="hidden mt-3">
           <div class="flex items-center gap-3">
-            <img id="olderImgPreview" class="w-20 h-20 rounded-xl object-cover bg-slate-100 hidden">
-            <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-slate-100 text-ink font-500 flex items-center gap-2">
+            <img id="olderImgPreview" class="w-20 h-20 rounded-xl object-cover bg-subtle hidden">
+            <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2">
               <i data-lucide="image-plus" class="w-5 h-5"></i> เลือกรูป (1 ภาพ)
               <input type="file" accept="image/*" class="hidden" onchange="olderImageChange(event)"></label>
           </div>
         </div>
-        <div class="mt-5 pt-4 border-t border-slate-100">
+        <div class="mt-5 pt-4 border-t border-line">
           <div class="flex items-center justify-between mb-2">
             <span class="font-500 text-ink">รูปกิจกรรมการดูแล</span>
             <span class="text-xs text-muted">เลือกแล้ว <span id="serviceImgCount">0</span> / อย่างน้อย ${MIN_SERVICE_IMAGES} ภาพ</span>
@@ -1266,7 +1316,7 @@ async function loadVisitForm(container, patientId) {
         <div id="locationFields" class="hidden mt-3">
           <button type="button" onclick="getCurrentLocation()" class="btn w-full h-11 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-2 mb-3">
             <i data-lucide="locate-fixed" class="w-5 h-5"></i> ใช้ตำแหน่งปัจจุบัน</button>
-          <div id="leafletMap" class="w-full h-56 rounded-xl border border-slate-200 z-0"></div>
+          <div id="leafletMap" class="w-full h-56 rounded-xl border border-line z-0"></div>
           <div class="grid grid-cols-2 gap-3 mt-3">
             ${inputField('vLat', 'Latitude', 'text', '', 'readonly')}
             ${inputField('vLng', 'Longitude', 'text', '', 'readonly')}
@@ -1275,16 +1325,17 @@ async function loadVisitForm(container, patientId) {
         </div>
       `)}
 
-      ${formSection(10, 'หมายเหตุ', `<textarea id="vNote" rows="3" placeholder="บันทึกเพิ่มเติม..." class="w-full p-3.5 rounded-xl border border-slate-200 outline-none focus:border-primary resize-none"></textarea>`)}
+      ${formSection(10, 'หมายเหตุ', `<textarea id="vNote" rows="3" placeholder="บันทึกเพิ่มเติม..." class="w-full p-3.5 rounded-xl border border-line outline-none focus:border-primary resize-none"></textarea>`)}
 
       <div class="flex gap-2 mt-4 mb-6">
-        <button type="button" onclick="navigate('${isAdmin() ? 'patients' : 'dashboard'}')" class="btn h-12 px-5 rounded-xl bg-slate-100 text-ink font-500 flex items-center justify-center gap-2">
+        <button type="button" onclick="navigate('${isAdmin() ? 'patients' : 'dashboard'}')" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center justify-center gap-2">
           <i data-lucide="arrow-left" class="w-5 h-5"></i> ย้อนกลับ</button>
-        <button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-white font-500 shadow-soft flex items-center justify-center gap-2">
+        <button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft flex items-center justify-center gap-2">
           <i data-lucide="save" class="w-5 h-5"></i> บันทึกการเยี่ยม</button>
       </div>
     </form>`;
   refreshIcons();
+  fpInit('vDate', { onChange: updateDateTH });
 }
 
 function inputFieldWrap(html) { return html; } // ตัวช่วยจัดวาง (ไม่ทำอะไรพิเศษ)
@@ -1292,7 +1343,7 @@ function inputFieldWrap(html) { return html; } // ตัวช่วยจัด
 function mentalSectionHtml() {
   // 2Q
   const q2opts = [{ value: 'ไม่มี', label: 'ไม่มี' }, { value: 'มี', label: 'มี' }];
-  let html = `<div class="bg-slate-50 rounded-xl p-3 mb-3">
+  let html = `<div class="bg-subtle rounded-xl p-3 mb-3">
     <div class="font-500 text-ink text-sm mb-1">2Q · คัดกรองภาวะซึมเศร้า</div>
     ${questionBlock(1, 'ใน 2 สัปดาห์ที่ผ่านมา (รวมวันนี้) รู้สึกหดหู่ เศร้า หรือท้อแท้สิ้นหวังหรือไม่', radioRow('dep2q1', q2opts, 'calculate2QResult()'))}
     ${questionBlock(2, 'ใน 2 สัปดาห์ที่ผ่านมา (รวมวันนี้) รู้สึกเบื่อ ทำอะไรก็ไม่เพลิดเพลินหรือไม่', radioRow('dep2q2', q2opts, 'calculate2QResult()'))}
@@ -1300,7 +1351,7 @@ function mentalSectionHtml() {
   </div>`;
 
   // 9Q
-  html += `<div id="block9Q" class="hidden bg-slate-50 rounded-xl p-3 mb-3">
+  html += `<div id="block9Q" class="hidden bg-subtle rounded-xl p-3 mb-3">
     <div class="font-500 text-ink text-sm mb-1">9Q · แบบประเมินโรคซึมเศร้า</div>
     ${DEP9Q.map((t, i) => questionBlock(i + 1, t, radioRow('dep9q' + (i + 1), DEP9Q_OPTS, 'calculate9QTotal()'))).join('')}
     <div class="text-sm mt-2 flex items-center justify-between">
@@ -1310,7 +1361,7 @@ function mentalSectionHtml() {
   </div>`;
 
   // 8Q
-  html += `<div id="block8Q" class="hidden bg-slate-50 rounded-xl p-3">
+  html += `<div id="block8Q" class="hidden bg-subtle rounded-xl p-3">
     <div class="font-500 text-ink text-sm mb-1">8Q · ประเมินแนวโน้มการฆ่าตัวตาย</div>
     ${SUI8Q.map((q, i) => {
       const idx = i + 1;
@@ -1359,29 +1410,29 @@ function toggleSwitch(id, label, onchange, checked) {
     <span class="font-500 text-ink">${esc(label)}</span>
     <span class="relative inline-flex shrink-0">
       <input type="checkbox" id="${id}" class="peer sr-only" ${checked ? 'checked' : ''} onchange="${onchange}">
-      <span class="w-12 h-7 bg-slate-200 rounded-full peer-checked:bg-primary transition-colors"></span>
-      <span class="absolute left-0.5 top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></span>
+      <span class="w-12 h-7 bg-subtle rounded-full peer-checked:bg-primary transition-colors"></span>
+      <span class="absolute left-0.5 top-0.5 w-6 h-6 bg-card rounded-full shadow transition-transform peer-checked:translate-x-5"></span>
     </span>
   </label>`;
 }
 function radioCard(name, value, label, onchange) {
   return `<label class="flex-1 min-w-0">
     <input type="radio" name="${name}" value="${esc(value)}" class="peer sr-only" onchange="${onchange}">
-    <span class="block text-center text-sm py-2.5 px-2 rounded-xl border border-slate-200 cursor-pointer peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary">${esc(label)}</span>
+    <span class="block text-center text-sm py-2.5 px-2 rounded-xl border border-line cursor-pointer peer-checked:bg-primary peer-checked:text-[#1a1000] peer-checked:border-primary">${esc(label)}</span>
   </label>`;
 }
 function radioRow(name, options, onchange) {
   return `<div class="flex gap-2">${options.map(o => radioCard(name, o.value, o.label, onchange)).join('')}</div>`;
 }
 function questionBlock(no, text, radiosHtml, extraHtml) {
-  return `<div class="py-3 border-b border-slate-100 last:border-0">
+  return `<div class="py-3 border-b border-line last:border-0">
      <div class="text-sm text-ink mb-2"><span class="text-primary font-500">${no}.</span> ${esc(text)}</div>
      ${radiosHtml}${extraHtml || ''}
    </div>`;
 }
 function checkboxList(name, items) {
   return `<div class="space-y-2">${items.map(t => `
-    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-line cursor-pointer hover:bg-subtle">
       <input type="checkbox" name="${name}" value="${esc(t)}" class="mt-0.5 w-5 h-5 accent-primary shrink-0">
       <span class="text-sm text-ink">${esc(t)}</span></label>`).join('')}</div>`;
 }
@@ -1680,7 +1731,7 @@ async function viewHistory(container, params) {
   $id('hsPicker').innerHTML = `
     <div class="relative mb-3">
       <i data-lucide="search" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
-      <input id="hsSearch" type="text" placeholder="ค้นหาผู้ป่วยเพื่อดูประวัติ" class="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 focus:border-primary outline-none">
+      <input id="hsSearch" type="text" placeholder="ค้นหาผู้ป่วยเพื่อดูประวัติ" class="w-full h-11 pl-10 pr-3 rounded-xl border border-line focus:border-primary outline-none">
     </div>
     <div id="hsList" class="space-y-2"></div>`;
   refreshIcons();
@@ -1693,8 +1744,8 @@ function renderHistoryPicker() {
   if (q) rows = rows.filter(p => [p.fullName, p.pid, p.patientId].some(v => String(v).toLowerCase().includes(q)));
   $id('hsList').innerHTML = rows.length ? rows.map(p => `
     <button onclick="navigate('history', { patientId: '${esc(p.patientId)}' })"
-      class="w-full bg-card rounded-2xl shadow-card p-3 flex items-center gap-3 text-left hover:bg-slate-50">
-      <img src="${esc(p.imageUrl)}" class="w-11 h-11 rounded-xl object-cover bg-slate-100 shrink-0">
+      class="w-full bg-card rounded-2xl shadow-card p-3 flex items-center gap-3 text-left hover:bg-subtle">
+      <img src="${esc(p.imageUrl)}" class="w-11 h-11 rounded-xl object-cover bg-subtle shrink-0">
       <div class="flex-1 min-w-0"><div class="font-500 text-ink truncate">${esc(p.patientName || p.fullName)}</div>
         <div class="text-xs text-muted">${esc(p.patientId)} · บ้าน ${esc(p.houseNo || '-')} หมู่ ${esc(p.moo || '-')}</div></div>
       <i data-lucide="chevron-right" class="w-5 h-5 text-muted shrink-0"></i>
@@ -1710,7 +1761,7 @@ async function loadHistory(container, patientId) {
   const visits = (res.data.visits || []).slice().reverse(); // ใหม่สุดก่อน
 
   const actionBar = `<div class="flex flex-wrap gap-2 mb-4 no-print">
-      <button onclick="navigate('history')" class="btn h-10 px-4 rounded-xl bg-slate-100 text-ink font-500 flex items-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> ย้อนกลับ</button>
+      <button onclick="navigate('history')" class="btn h-10 px-4 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> ย้อนกลับ</button>
       <button onclick="printHistory()" class="btn h-10 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์รายงาน</button>
       <button onclick="exportHistoryCSV()" class="btn h-10 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Export CSV</button>
     </div>`;
@@ -1727,7 +1778,7 @@ function renderHistoryHeader(p, totalVisits, lastVisitDate) {
   const row = (l, v) => `<div class="flex justify-between gap-2 text-sm py-0.5"><span class="text-muted">${esc(l)}</span><span class="text-ink font-500 text-right">${esc(v == null || v === '' ? '-' : v)}</span></div>`;
   return `<div class="bg-card rounded-2xl shadow-card p-4 mb-4">
       <div class="flex items-center gap-3 mb-3">
-        <img src="${esc(p.imageUrl)}" class="w-16 h-16 rounded-2xl object-cover bg-slate-100">
+        <img src="${esc(p.imageUrl)}" class="w-16 h-16 rounded-2xl object-cover bg-subtle">
         <div class="min-w-0"><div class="font-600 text-ink truncate">${esc(p.fullName)}</div>
           <div class="text-xs text-muted">${esc(p.patientId)} · ${esc(p.pid)}</div></div>
       </div>
@@ -1789,7 +1840,7 @@ function renderVisitCard(v) {
   if (v.locationEnabled && v.latitude && v.longitude) {
     const lat = v.latitude, lng = v.longitude;
     inner += `<div><div class="text-xs text-muted mb-1">พิกัด</div>
-        <iframe class="w-full h-40 rounded-xl border border-slate-200" loading="lazy"
+        <iframe class="w-full h-40 rounded-xl border border-line" loading="lazy"
           src="https://www.openstreetmap.org/export/embed.html?bbox=${(+lng - 0.004)}%2C${(+lat - 0.0025)}%2C${(+lng + 0.004)}%2C${(+lat + 0.0025)}&layer=mapnik&marker=${lat}%2C${lng}"></iframe>
         <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="text-xs text-primary mt-1 inline-flex items-center gap-1"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> เปิดใน Google Maps</a></div>`;
   }
@@ -1797,7 +1848,7 @@ function renderVisitCard(v) {
 
   return `<div class="bg-card rounded-2xl shadow-card overflow-hidden">
       <div class="bg-primary/5 px-4 py-3 flex items-center justify-between">
-        <span class="flex items-center gap-2"><span class="w-7 h-7 rounded-lg bg-primary text-white text-sm font-600 flex items-center justify-center">${esc(v.visitNo)}</span><span class="font-500 text-ink">ครั้งที่ ${esc(v.visitNo)}</span></span>
+        <span class="flex items-center gap-2"><span class="w-7 h-7 rounded-lg bg-primary text-[#1a1000] text-sm font-600 flex items-center justify-center">${esc(v.visitNo)}</span><span class="font-500 text-ink">ครั้งที่ ${esc(v.visitNo)}</span></span>
         <span class="text-sm text-muted">${formatThaiDate(v.visitDate)}</span>
       </div>
       <div class="p-4 space-y-3">${inner}</div>
@@ -1837,7 +1888,7 @@ async function viewAssigned(container) {
   container.innerHTML = `
     <div class="relative mb-4">
       <i data-lucide="search" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
-      <input id="agSearch" type="text" placeholder="ค้นหาผู้ป่วย" class="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 focus:border-primary outline-none">
+      <input id="agSearch" type="text" placeholder="ค้นหาผู้ป่วย" class="w-full h-11 pl-10 pr-3 rounded-xl border border-line focus:border-primary outline-none">
     </div>
     <div id="agList"></div>`;
   refreshIcons();
@@ -1856,7 +1907,7 @@ function renderAssignedList() {
   $id('agList').innerHTML = `<div class="space-y-3">` + rows.map(p => `
     <div class="bg-card rounded-2xl shadow-card p-4">
       <div class="flex items-center gap-3">
-        <img src="${esc(p.imageUrl)}" class="w-14 h-14 rounded-xl object-cover bg-slate-100 shrink-0">
+        <img src="${esc(p.imageUrl)}" class="w-14 h-14 rounded-xl object-cover bg-subtle shrink-0">
         <div class="flex-1 min-w-0">
           <div class="font-500 text-ink truncate">${esc(p.patientName)}</div>
           <div class="text-xs text-muted mt-0.5">${esc(p.gender || '-')} · อายุ ${p.age !== '' ? esc(p.age) + ' ปี' : '-'} · บ้าน ${esc(p.houseNo || '-')} หมู่ ${esc(p.moo || '-')}</div>
@@ -1864,7 +1915,7 @@ function renderAssignedList() {
         </div>
       </div>
       <div class="grid grid-cols-2 gap-2 mt-3">
-        <button onclick="navigate('visitForm', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-1.5"><i data-lucide="file-plus-2" class="w-4 h-4"></i> บันทึกเยี่ยม</button>
+        <button onclick="navigate('visitForm', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-1.5"><i data-lucide="file-plus-2" class="w-4 h-4"></i> บันทึกเยี่ยม</button>
         <button onclick="navigate('history', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-1.5"><i data-lucide="history" class="w-4 h-4"></i> ดูประวัติ</button>
       </div>
     </div>`).join('') + `</div>`;
@@ -1877,7 +1928,7 @@ function renderAssignedList() {
 // ===============================
 async function viewProfile(container) {
   const u = getUser();
-  const profRow = (l, v) => `<div class="flex justify-between gap-2 py-2 border-b border-slate-100 last:border-0"><span class="text-muted text-sm">${esc(l)}</span><span class="text-ink text-sm font-500">${esc(v || '-')}</span></div>`;
+  const profRow = (l, v) => `<div class="flex justify-between gap-2 py-2 border-b border-line last:border-0"><span class="text-muted text-sm">${esc(l)}</span><span class="text-ink text-sm font-500">${esc(v || '-')}</span></div>`;
   container.innerHTML = `
     <div class="bg-card rounded-2xl shadow-card p-6 text-center mb-3">
       <div class="w-20 h-20 mx-auto rounded-full bg-primary/10 text-primary text-3xl font-600 flex items-center justify-center mb-3">${esc((u.fullName || u.username || 'U').charAt(0).toUpperCase())}</div>
@@ -1924,22 +1975,23 @@ async function viewDailyReport(container) {
     <div class="bg-card rounded-2xl shadow-card p-4 mb-4 no-print">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label class="block text-sm text-muted mb-1.5">วันที่</label>
-          <input id="drDate" type="date" value="${todayISO()}" class="w-full h-11 px-3 rounded-xl border border-slate-200 outline-none focus:border-primary"></div>
+          <input id="drDate" type="text" value="${todayISO()}" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
         ${isAdmin() ? `<div><label class="block text-sm text-muted mb-1.5">Care Giver</label>
-          <select id="drCg" class="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white">${cgOptions}</select></div>` : ''}
+          <select id="drCg" class="w-full h-11 px-3 rounded-xl border border-line bg-card">${cgOptions}</select></div>` : ''}
         <div><label class="block text-sm text-muted mb-1.5">หมู่</label>
-          <input id="drMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-slate-200 outline-none focus:border-primary"></div>
+          <input id="drMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
         <div><label class="block text-sm text-muted mb-1.5">ค้นหาผู้ป่วย</label>
-          <input id="drSearch" type="text" placeholder="ชื่อผู้ป่วย" class="w-full h-11 px-3 rounded-xl border border-slate-200 outline-none focus:border-primary"></div>
+          <input id="drSearch" type="text" placeholder="ชื่อผู้ป่วย" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
       </div>
       <div class="flex gap-2 mt-3">
-        <button onclick="loadDailyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+        <button onclick="loadDailyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
         <button onclick="exportDailyCSV()" class="btn h-11 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-5 h-5"></i> CSV</button>
         <button onclick="window.print()" class="btn h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5"></i></button>
       </div>
     </div>
     <div id="drResult"></div>`;
   refreshIcons();
+  fpInit('drDate', { altInputClass: DATE_CLS_SM });
   loadDailyReport();
 }
 async function loadDailyReport() {
@@ -1953,9 +2005,9 @@ async function loadDailyReport() {
 }
 function renderDailyReport() {
   const d = _dailyData;
-  const head = `<div class="bg-primary text-white rounded-2xl p-4 mb-3 flex items-center justify-between">
-      <div><div class="text-sm text-white/80">รายงานการเยี่ยมวันที่</div><div class="font-600">${formatThaiDate(d.date)}</div></div>
-      <div class="text-right"><div class="text-3xl font-600 leading-none">${d.total}</div><div class="text-xs text-white/80">ครั้ง</div></div>
+  const head = `<div class="bg-primary text-[#1a1000] rounded-2xl p-4 mb-3 flex items-center justify-between">
+      <div><div class="text-sm text-[#1a1000]/70">รายงานการเยี่ยมวันที่</div><div class="font-600">${formatThaiDate(d.date)}</div></div>
+      <div class="text-right"><div class="text-3xl font-600 leading-none">${d.total}</div><div class="text-xs text-[#1a1000]/70">ครั้ง</div></div>
     </div>`;
   if (!d.visits.length) { $id('drResult').innerHTML = head + emptyState('ไม่มีการเยี่ยมในวันที่เลือก'); refreshIcons(); return; }
   const list = d.visits.map(v => {
@@ -2013,16 +2065,16 @@ async function viewMonthlyReport(container) {
     <div class="bg-card rounded-2xl shadow-card p-4 mb-4 no-print">
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-sm text-muted mb-1.5">เดือน</label>
-          <select id="mrMonth" class="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white">${monthOpts}</select></div>
+          <select id="mrMonth" class="w-full h-11 px-3 rounded-xl border border-line bg-card">${monthOpts}</select></div>
         <div><label class="block text-sm text-muted mb-1.5">ปี (พ.ศ.)</label>
-          <select id="mrYear" class="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white">${yearOpts}</select></div>
+          <select id="mrYear" class="w-full h-11 px-3 rounded-xl border border-line bg-card">${yearOpts}</select></div>
         ${isAdmin() ? `<div><label class="block text-sm text-muted mb-1.5">Care Giver</label>
-          <select id="mrCg" class="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white">${cgOptions}</select></div>` : ''}
+          <select id="mrCg" class="w-full h-11 px-3 rounded-xl border border-line bg-card">${cgOptions}</select></div>` : ''}
         <div><label class="block text-sm text-muted mb-1.5">หมู่</label>
-          <input id="mrMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-slate-200 outline-none focus:border-primary"></div>
+          <input id="mrMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
       </div>
       <div class="flex gap-2 mt-3">
-        <button onclick="loadMonthlyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+        <button onclick="loadMonthlyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
         <button onclick="exportMonthlyCSV()" class="btn h-11 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-5 h-5"></i> CSV</button>
         <button onclick="window.print()" class="btn h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5"></i></button>
       </div>
@@ -2045,11 +2097,11 @@ function renderMonthlyReport() {
   const acts = Object.keys(d.activityCounts || {}).map(k => ({ name: k, count: d.activityCounts[k] })).sort((a, b) => b.count - a.count);
   const maxCount = acts.length ? acts[0].count : 1;
 
-  const summary = `<div class="bg-primary text-white rounded-2xl p-4 mb-3">
-      <div class="text-sm text-white/80">รายงานเดือน ${THAI_MONTHS[d.month - 1]} ${d.yearTH}</div>
+  const summary = `<div class="bg-primary text-[#1a1000] rounded-2xl p-4 mb-3">
+      <div class="text-sm text-[#1a1000]/70">รายงานเดือน ${THAI_MONTHS[d.month - 1]} ${d.yearTH}</div>
       <div class="grid grid-cols-2 gap-3 mt-2">
-        <div><div class="text-3xl font-600 leading-none">${d.totalVisits}</div><div class="text-xs text-white/80 mt-1">ครั้งการเยี่ยมรวม</div></div>
-        <div><div class="text-3xl font-600 leading-none">${d.patientsCovered}</div><div class="text-xs text-white/80 mt-1">ผู้ป่วยที่ดูแล</div></div>
+        <div><div class="text-3xl font-600 leading-none">${d.totalVisits}</div><div class="text-xs text-[#1a1000]/70 mt-1">ครั้งการเยี่ยมรวม</div></div>
+        <div><div class="text-3xl font-600 leading-none">${d.patientsCovered}</div><div class="text-xs text-[#1a1000]/70 mt-1">ผู้ป่วยที่ดูแล</div></div>
       </div>
     </div>`;
 
@@ -2058,23 +2110,23 @@ function renderMonthlyReport() {
       ${acts.length ? acts.map(a => `
         <div class="mb-2">
           <div class="flex justify-between text-sm mb-1"><span class="text-ink truncate pr-2">${esc(a.name)}</span><span class="text-muted shrink-0">${a.count}</span></div>
-          <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-primary rounded-full" style="width:${Math.round(a.count / maxCount * 100)}%"></div></div>
+          <div class="h-2 bg-subtle rounded-full overflow-hidden"><div class="h-full bg-primary rounded-full" style="width:${Math.round(a.count / maxCount * 100)}%"></div></div>
         </div>`).join('') : '<div class="text-muted text-sm text-center py-4">ไม่มีข้อมูล</div>'}
     </div>`;
 
   const cgTable = `<div class="bg-card rounded-2xl shadow-card p-4 mb-3">
       <h3 class="font-600 text-ink mb-3 flex items-center gap-2"><i data-lucide="user-cog" class="w-5 h-5 text-primary"></i> แยกตาม Care Giver</h3>
-      <table class="w-full text-sm"><thead><tr class="text-muted text-left border-b border-slate-100">
+      <table class="w-full text-sm"><thead><tr class="text-muted text-left border-b border-line">
         <th class="py-2 font-500">Care Giver</th><th class="py-2 font-500 text-center">ครั้ง</th><th class="py-2 font-500 text-center">ผู้ป่วย</th></tr></thead>
-      <tbody>${(d.byCaregiver || []).length ? d.byCaregiver.map(c => `<tr class="border-b border-slate-50">
+      <tbody>${(d.byCaregiver || []).length ? d.byCaregiver.map(c => `<tr class="border-b border-line">
         <td class="py-2">${esc(c.caregiverName || c.caregiverCode)}</td><td class="py-2 text-center">${c.visits}</td><td class="py-2 text-center">${c.patients}</td></tr>`).join('') : '<tr><td colspan="3" class="py-4 text-center text-muted">ไม่มีข้อมูล</td></tr>'}</tbody></table>
     </div>`;
 
   const ptTable = `<div class="bg-card rounded-2xl shadow-card p-4">
       <h3 class="font-600 text-ink mb-3 flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-primary"></i> แยกตามผู้ป่วย</h3>
-      <table class="w-full text-sm"><thead><tr class="text-muted text-left border-b border-slate-100">
+      <table class="w-full text-sm"><thead><tr class="text-muted text-left border-b border-line">
         <th class="py-2 font-500">ผู้ป่วย</th><th class="py-2 font-500 text-center">จำนวนครั้ง</th></tr></thead>
-      <tbody>${(d.byPatient || []).length ? d.byPatient.sort((a, b) => b.visits - a.visits).map(p => `<tr class="border-b border-slate-50">
+      <tbody>${(d.byPatient || []).length ? d.byPatient.sort((a, b) => b.visits - a.visits).map(p => `<tr class="border-b border-line">
         <td class="py-2">${esc(p.patientName)}</td><td class="py-2 text-center">${p.visits}</td></tr>`).join('') : '<tr><td colspan="2" class="py-4 text-center text-muted">ไม่มีข้อมูล</td></tr>'}</tbody></table>
     </div>`;
 
@@ -2147,6 +2199,11 @@ async function runSetupSheets() {
 // BOOT
 // ===============================
 function boot() {
+  // ใช้ธีมที่บันทึกไว้ (หรือตามระบบ)
+  const savedTheme = localStorage.getItem('care_theme') ||
+    ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+  applyTheme(savedTheme);
+
   refreshIcons();
 
   // ปุ่มแสดง/ซ่อนรหัสผ่าน
