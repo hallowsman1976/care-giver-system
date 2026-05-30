@@ -116,7 +116,7 @@ function confirmDialog(opts) {
  * ทำให้เบราว์เซอร์ไม่ส่ง OPTIONS preflight (ซึ่ง Apps Script จัดการไม่ได้)
  */
 async function apiRaw(action, data) {
-  if (!CONFIG.API_URL || CONFIG.API_URL === 'https://script.google.com/macros/s/AKfycbwvXs1IUVSwzYNC6i_UxZNcs-vlpo9uANaEpPyzXW_XROoOlZBX7cRemLSxdPs0kYaQ/exec') {
+  if (!CONFIG.API_URL || CONFIG.API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
     throw new Error('ยังไม่ได้ตั้งค่า API_URL ใน app.js');
   }
   const res = await fetch(CONFIG.API_URL, {
