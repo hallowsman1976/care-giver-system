@@ -1178,10 +1178,12 @@ let _visitOlderFile = null;
 let _visitServiceFiles = [];
 let _leafletMap = null, _leafletMarker = null;
 let _alerted8Q = false;
+let _visitStep = 1;
 
 function resetVisitState() {
   _visitPatientId = null; _visitOlderFile = null; _visitServiceFiles = [];
   _leafletMap = null; _leafletMarker = null; _alerted8Q = false;
+  _visitStep = 1;
 }
 
 
@@ -1225,6 +1227,93 @@ async function loadVisitForm(container, patientId) {
   const today = todayISO();
   const visitor = getUser().fullName || getUser().username;
 
+  // ----- เนื้อหาแต่ละขั้น (คง id/handler เดิมทั้งหมด) -----
+  const S1 = `
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="block text-sm text-muted mb-1.5">ครั้งที่เยี่ยม</label>
+        <input value="${nextNo}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink font-500"></div>
+      <div><label class="block text-sm text-muted mb-1.5">วันที่เยี่ยม</label>
+        <input id="vDate" type="text" value="${today}" class="w-full h-12 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
+    </div>
+    <div class="text-xs text-muted mt-1">วันที่ (พ.ศ.): <span id="vDateTH" class="font-500 text-ink">${formatThaiDate(today)}</span></div>
+    <div class="grid grid-cols-2 gap-3 mt-3">
+      ${inputField('vStart', 'เวลาเริ่ม *', 'time', '')}
+      ${inputField('vEnd', 'เวลาสิ้นสุด', 'time', '')}
+    </div>
+    <div class="mt-3"><label class="block text-sm text-muted mb-1.5">ผู้เยี่ยม</label>
+      <input value="${esc(visitor)}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink"></div>
+    <div class="mt-3">${inputField('vCaregiverPerson', 'ชื่อผู้ดูแล (ในครอบครัว)', 'text', p.caregiverName || '')}</div>
+    <div class="mt-3">${selectField('vRelation', 'ความสัมพันธ์', [['', '-']].concat(RELATIONSHIPS.map(r => [r, r])), '')}</div>`;
+
+  const S2 = `
+    <div class="grid grid-cols-2 gap-3">
+      ${inputField('vWeight', 'น้ำหนัก (กก.)', 'number', '', 'inputmode="decimal" oninput="calculateBMI()"')}
+      ${inputField('vHeight', 'ส่วนสูง (ซม.)', 'number', '', 'inputmode="decimal" oninput="calculateBMI()"')}
+    </div>
+    <div class="grid grid-cols-2 gap-3 mt-3">
+      <div><label class="block text-sm text-muted mb-1.5">BMI</label>
+        <input id="vBmi" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle font-500"></div>
+      <div><label class="block text-sm text-muted mb-1.5">แปลผล</label>
+        <div id="vBmiResult" class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle flex items-center font-500 text-primary">-</div></div>
+    </div>`;
+
+  const S3 = `
+    ${toggleSwitch('vitalEnabled', 'บันทึกสัญญาณชีพ', 'toggleVitalSection()')}
+    <div id="vitalFields" class="hidden mt-3 grid grid-cols-2 gap-3">
+      ${inputField('vTemp', 'อุณหภูมิ (°C)', 'number', '', 'inputmode="decimal"')}
+      ${inputField('vPulse', 'ชีพจร (ครั้ง/นาที)', 'number', '', 'inputmode="numeric"')}
+      ${inputField('vResp', 'การหายใจ (ครั้ง/นาที)', 'number', '', 'inputmode="numeric"')}
+      <div class="grid grid-cols-2 gap-2">
+        ${inputField('vSys', 'SYS', 'number', '', 'inputmode="numeric"')}
+        ${inputField('vDia', 'DIA', 'number', '', 'inputmode="numeric"')}
+      </div>
+    </div>`;
+
+  const S4 = `
+    ${toggleSwitch('mentalEnabled', 'ทำแบบประเมินสุขภาพจิต', 'toggleMentalSection()')}
+    <div id="mentalFields" class="hidden mt-3">${mentalSectionHtml()}</div>`;
+
+  const S8 = `
+    ${toggleSwitch('olderImageEnabled', 'แนบรูปผู้มีภาวะพึ่งพิง', 'toggleImageSection()')}
+    <div id="olderImageField" class="hidden mt-3">
+      <div class="flex items-center gap-3">
+        <img id="olderImgPreview" class="w-20 h-20 rounded-xl object-cover bg-subtle hidden">
+        <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2">
+          <i data-lucide="image-plus" class="w-5 h-5"></i> เลือกรูป (1 ภาพ)
+          <input type="file" accept="image/*" class="hidden" onchange="olderImageChange(event)"></label>
+      </div>
+    </div>
+    <div class="mt-5 pt-4 border-t border-line">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-500 text-ink">รูปกิจกรรมการดูแล</span>
+        <span class="text-xs text-muted">เลือกแล้ว <span id="serviceImgCount">0</span> / อย่างน้อย ${MIN_SERVICE_IMAGES} ภาพ</span>
+      </div>
+      <div id="serviceImgPreviews" class="flex flex-wrap gap-2 mb-2"></div>
+      <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-2">
+        <i data-lucide="images" class="w-5 h-5"></i> เพิ่มรูปกิจกรรม
+        <input type="file" accept="image/*" multiple class="hidden" onchange="serviceImagesChange(event)"></label>
+    </div>`;
+
+  const S9 = `
+    ${toggleSwitch('locationEnabled', 'บันทึกพิกัดตำแหน่ง', 'toggleLocationSection()')}
+    <div id="locationFields" class="hidden mt-3">
+      <button type="button" onclick="getCurrentLocation()" class="btn w-full h-11 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-2 mb-3">
+        <i data-lucide="locate-fixed" class="w-5 h-5"></i> ใช้ตำแหน่งปัจจุบัน</button>
+      <div id="leafletMap" class="w-full h-56 rounded-xl border border-line z-0"></div>
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        ${inputField('vLat', 'Latitude', 'text', '', 'readonly')}
+        ${inputField('vLng', 'Longitude', 'text', '', 'readonly')}
+      </div>
+      <p class="text-xs text-muted mt-1">แตะบนแผนที่หรือลากหมุดเพื่อปรับตำแหน่ง</p>
+    </div>`;
+
+  const S10 = `<textarea id="vNote" rows="4" placeholder="บันทึกเพิ่มเติม..." class="w-full p-3.5 rounded-xl border border-line outline-none focus:border-primary resize-none"></textarea>
+    <div class="mt-3 p-3 rounded-xl bg-primary/5 border border-primary/15 text-sm text-muted flex items-start gap-2">
+      <i data-lucide="info" class="w-4 h-4 text-primary mt-0.5 shrink-0"></i>
+      <span>ตรวจสอบความถูกต้องของข้อมูลทุกขั้นตอนก่อนกด "บันทึกการเยี่ยม" — แตะที่หมายเลขขั้นตอนด้านบนเพื่อย้อนกลับไปแก้ไขได้</span>
+    </div>`;
+
+  // ----- รวมเป็น 7 ขั้น -----
   container.innerHTML = `
     <!-- หัวข้อผู้ป่วย -->
     <div class="bg-primary text-[#1a1000] rounded-2xl shadow-soft p-4 mb-3 flex items-center gap-3">
@@ -1235,107 +1324,119 @@ async function loadVisitForm(container, patientId) {
       </div>
     </div>
 
+    <!-- Stepper + Progress -->
+    <div id="vStepperWrap" class="bg-card rounded-2xl shadow-card p-4 mb-3 no-print"></div>
+
     <form id="visitForm" onsubmit="return false">
-      ${formSection(1, 'ข้อมูลการเยี่ยม', `
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="block text-sm text-muted mb-1.5">ครั้งที่เยี่ยม</label>
-            <input value="${nextNo}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink font-500"></div>
-          <div><label class="block text-sm text-muted mb-1.5">วันที่เยี่ยม</label>
-            <input id="vDate" type="text" value="${today}" class="w-full h-12 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
-        </div>
-        <div class="text-xs text-muted mt-1">วันที่ (พ.ศ.): <span id="vDateTH" class="font-500 text-ink">${formatThaiDate(today)}</span></div>
-        <div class="grid grid-cols-2 gap-3 mt-3">
-          ${inputField('vStart', 'เวลาเริ่ม *', 'time', '')}
-          ${inputField('vEnd', 'เวลาสิ้นสุด', 'time', '')}
-        </div>
-        <div class="mt-3"><label class="block text-sm text-muted mb-1.5">ผู้เยี่ยม</label>
-          <input value="${esc(visitor)}" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle text-ink"></div>
-        ${inputFieldWrap(`<div class="mt-3">${inputField('vCaregiverPerson', 'ชื่อผู้ดูแล (ในครอบครัว)', 'text', p.caregiverName || '')}</div>`)}
-        <div class="mt-3">${selectField('vRelation', 'ความสัมพันธ์', [['', '-']].concat(RELATIONSHIPS.map(r => [r, r])), '')}</div>
-      `, { open: true })}
+      <div class="vstep-body" data-step="1">${stepCard('ข้อมูลการเยี่ยม', 'clipboard-list', S1)}</div>
+      <div class="vstep-body hidden" data-step="2">${stepCard('ประเมินสุขภาพแรกรับ', 'stethoscope', subHead('ดัชนีมวลกาย (BMI)') + S2 + subHead('สัญญาณชีพ') + S3)}</div>
+      <div class="vstep-body hidden" data-step="3">${stepCard('การประเมินสุขภาพจิต', 'brain', S4)}</div>
+      <div class="vstep-body hidden" data-step="4">${stepCard('กิจกรรมการดูแล', 'list-checks',
+        subHead('กิจกรรมการช่วยเหลือประจำวัน') + checkboxList('daily', DAILY_ACTS) +
+        subHead('กิจกรรมการดูแลสุขภาพพื้นฐาน') + checkboxList('health', HEALTH_ACTS) +
+        subHead('กิจกรรมการดูแลด้านอื่น ๆ') + checkboxList('other', OTHER_ACTS))}</div>
+      <div class="vstep-body hidden" data-step="5">${stepCard('อัปโหลดรูปภาพ', 'images', S8)}</div>
+      <div class="vstep-body hidden" data-step="6">${stepCard('บันทึกพิกัด (Latitude / Longitude)', 'map-pin', S9)}</div>
+      <div class="vstep-body hidden" data-step="7">${stepCard('หมายเหตุ', 'edit-3', S10)}</div>
 
-      ${formSection(2, 'การประเมินสุขภาพแรกรับ (BMI)', `
-        <div class="grid grid-cols-2 gap-3">
-          ${inputField('vWeight', 'น้ำหนัก (กก.)', 'number', '', 'inputmode="decimal" oninput="calculateBMI()"')}
-          ${inputField('vHeight', 'ส่วนสูง (ซม.)', 'number', '', 'inputmode="decimal" oninput="calculateBMI()"')}
-        </div>
-        <div class="grid grid-cols-2 gap-3 mt-3">
-          <div><label class="block text-sm text-muted mb-1.5">BMI</label>
-            <input id="vBmi" disabled class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle font-500"></div>
-          <div><label class="block text-sm text-muted mb-1.5">แปลผล</label>
-            <div id="vBmiResult" class="w-full h-12 px-3.5 rounded-xl border border-line bg-subtle flex items-center font-500 text-primary">-</div></div>
-        </div>
-      `)}
-
-      ${formSection(3, 'สัญญาณชีพ', `
-        ${toggleSwitch('vitalEnabled', 'บันทึกสัญญาณชีพ', 'toggleVitalSection()')}
-        <div id="vitalFields" class="hidden mt-3 grid grid-cols-2 gap-3">
-          ${inputField('vTemp', 'อุณหภูมิ (°C)', 'number', '', 'inputmode="decimal"')}
-          ${inputField('vPulse', 'ชีพจร (ครั้ง/นาที)', 'number', '', 'inputmode="numeric"')}
-          ${inputField('vResp', 'การหายใจ (ครั้ง/นาที)', 'number', '', 'inputmode="numeric"')}
-          <div class="grid grid-cols-2 gap-2">
-            ${inputField('vSys', 'SYS', 'number', '', 'inputmode="numeric"')}
-            ${inputField('vDia', 'DIA', 'number', '', 'inputmode="numeric"')}
-          </div>
-        </div>
-      `)}
-
-      ${formSection(4, 'การประเมินสุขภาพจิต', `
-        ${toggleSwitch('mentalEnabled', 'ทำแบบประเมินสุขภาพจิต', 'toggleMentalSection()')}
-        <div id="mentalFields" class="hidden mt-3">${mentalSectionHtml()}</div>
-      `)}
-
-      ${formSection(5, 'กิจกรรมการช่วยเหลือประจำวัน', checkboxList('daily', DAILY_ACTS))}
-      ${formSection(6, 'กิจกรรมการดูแลสุขภาพพื้นฐาน', checkboxList('health', HEALTH_ACTS))}
-      ${formSection(7, 'กิจกรรมการดูแลด้านอื่น ๆ', checkboxList('other', OTHER_ACTS))}
-
-      ${formSection(8, 'อัปโหลดรูปภาพ', `
-        ${toggleSwitch('olderImageEnabled', 'แนบรูปผู้มีภาวะพึ่งพิง', 'toggleImageSection()')}
-        <div id="olderImageField" class="hidden mt-3">
-          <div class="flex items-center gap-3">
-            <img id="olderImgPreview" class="w-20 h-20 rounded-xl object-cover bg-subtle hidden">
-            <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2">
-              <i data-lucide="image-plus" class="w-5 h-5"></i> เลือกรูป (1 ภาพ)
-              <input type="file" accept="image/*" class="hidden" onchange="olderImageChange(event)"></label>
-          </div>
-        </div>
-        <div class="mt-5 pt-4 border-t border-line">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-500 text-ink">รูปกิจกรรมการดูแล</span>
-            <span class="text-xs text-muted">เลือกแล้ว <span id="serviceImgCount">0</span> / อย่างน้อย ${MIN_SERVICE_IMAGES} ภาพ</span>
-          </div>
-          <div id="serviceImgPreviews" class="flex flex-wrap gap-2 mb-2"></div>
-          <label class="btn cursor-pointer h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-2">
-            <i data-lucide="images" class="w-5 h-5"></i> เพิ่มรูปกิจกรรม
-            <input type="file" accept="image/*" multiple class="hidden" onchange="serviceImagesChange(event)"></label>
-        </div>
-      `)}
-
-      ${formSection(9, 'บันทึกพิกัด (Latitude / Longitude)', `
-        ${toggleSwitch('locationEnabled', 'บันทึกพิกัดตำแหน่ง', 'toggleLocationSection()')}
-        <div id="locationFields" class="hidden mt-3">
-          <button type="button" onclick="getCurrentLocation()" class="btn w-full h-11 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-2 mb-3">
-            <i data-lucide="locate-fixed" class="w-5 h-5"></i> ใช้ตำแหน่งปัจจุบัน</button>
-          <div id="leafletMap" class="w-full h-56 rounded-xl border border-line z-0"></div>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            ${inputField('vLat', 'Latitude', 'text', '', 'readonly')}
-            ${inputField('vLng', 'Longitude', 'text', '', 'readonly')}
-          </div>
-          <p class="text-xs text-muted mt-1">แตะบนแผนที่หรือลากหมุดเพื่อปรับตำแหน่ง</p>
-        </div>
-      `)}
-
-      ${formSection(10, 'หมายเหตุ', `<textarea id="vNote" rows="3" placeholder="บันทึกเพิ่มเติม..." class="w-full p-3.5 rounded-xl border border-line outline-none focus:border-primary resize-none"></textarea>`)}
-
-      <div class="flex gap-2 mt-4 mb-6">
-        <button type="button" onclick="navigate('${isAdmin() ? 'patients' : 'dashboard'}')" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center justify-center gap-2">
-          <i data-lucide="arrow-left" class="w-5 h-5"></i> ย้อนกลับ</button>
-        <button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft flex items-center justify-center gap-2">
-          <i data-lucide="save" class="w-5 h-5"></i> บันทึกการเยี่ยม</button>
-      </div>
+      <div id="vNav"></div>
     </form>`;
+
+  _visitStep = 1;
+  renderStepper();
+  renderVisitNav();
   refreshIcons();
   fpInit('vDate', { onChange: updateDateTH });
+}
+
+// ===============================
+// VISIT FORM — STEPPER NAVIGATION
+// ===============================
+const VISIT_STEPS = [
+  { t: 'ข้อมูลการเยี่ยม', icon: 'clipboard-list' },
+  { t: 'ประเมินสุขภาพ',   icon: 'stethoscope' },
+  { t: 'สุขภาพจิต',       icon: 'brain' },
+  { t: 'กิจกรรมการดูแล',  icon: 'list-checks' },
+  { t: 'รูปภาพ',          icon: 'images' },
+  { t: 'พิกัด',           icon: 'map-pin' },
+  { t: 'หมายเหตุ',        icon: 'edit-3' },
+];
+
+function stepCard(title, icon, contentHtml) {
+  return `<div class="bg-card rounded-2xl shadow-card p-4 mb-3">
+      <div class="font-600 text-ink mb-3 flex items-center gap-2"><i data-lucide="${icon}" class="w-5 h-5 text-primary"></i> ${esc(title)}</div>
+      ${contentHtml}
+    </div>`;
+}
+function subHead(title) {
+  return `<div class="text-sm font-600 text-primary mt-5 mb-2 first:mt-0 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span>${esc(title)}</div>`;
+}
+
+function renderStepper() {
+  const total = VISIT_STEPS.length, cur = _visitStep;
+  let row = '';
+  for (let i = 1; i <= total; i++) {
+    const done = i < cur, active = i === cur;
+    const cls = active ? 'bg-primary text-[#1a1000] border-primary ring-4 ring-primary/25'
+      : done ? 'bg-success text-white border-success' : 'bg-card text-muted border-line';
+    row += `<button type="button" onclick="goStep(${i})" title="${esc(VISIT_STEPS[i - 1].t)}"
+        class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-600 shrink-0 transition-all ${cls}">
+        ${done ? '<i data-lucide="check" class="w-4 h-4"></i>' : i}</button>`;
+    if (i < total) row += `<div class="flex-1 h-0.5 mx-1 ${i < cur ? 'bg-primary' : 'bg-line'}"></div>`;
+  }
+  const pct = Math.round(cur / total * 100);
+  $id('vStepperWrap').innerHTML = `
+    <div class="flex items-center mb-3">${row}</div>
+    <div class="h-2 bg-subtle rounded-full overflow-hidden mb-2"><div class="h-full bg-primary rounded-full transition-all duration-300" style="width:${pct}%"></div></div>
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-600 text-ink">ขั้นตอนที่ ${cur}/${total} · ${esc(VISIT_STEPS[cur - 1].t)}</span>
+      <span class="text-xs text-muted">${pct}%</span>
+    </div>`;
+  refreshIcons();
+}
+
+function renderVisitNav() {
+  const total = VISIT_STEPS.length, cur = _visitStep;
+  const back = cur > 1
+    ? `<button type="button" onclick="prevStep()" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2"><i data-lucide="arrow-left" class="w-5 h-5"></i> ย้อนกลับ</button>`
+    : `<button type="button" onclick="navigate('${isAdmin() ? 'patients' : 'dashboard'}')" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2"><i data-lucide="x" class="w-5 h-5"></i> ยกเลิก</button>`;
+  const next = cur < total
+    ? `<button type="button" onclick="nextStep()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2">ถัดไป <i data-lucide="arrow-right" class="w-5 h-5"></i></button>`
+    : `<button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft flex items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกการเยี่ยม</button>`;
+  $id('vNav').innerHTML = `<div class="flex gap-2 mt-4 mb-6">${back}${next}</div>`;
+  refreshIcons();
+}
+
+function goStep(n) {
+  const total = VISIT_STEPS.length;
+  n = Math.max(1, Math.min(total, n));
+  _visitStep = n;
+  document.querySelectorAll('.vstep-body').forEach(el => {
+    el.classList.toggle('hidden', +el.getAttribute('data-step') !== n);
+  });
+  renderStepper();
+  renderVisitNav();
+  window.scrollTo(0, 0);
+  if (n === 6 && _leafletMap) setTimeout(() => _leafletMap.invalidateSize(), 150);
+}
+function nextStep() { if (!validateStep(_visitStep)) return; goStep(_visitStep + 1); }
+function prevStep() { goStep(_visitStep - 1); }
+
+/** ตรวจความถูกต้องของแต่ละขั้นก่อนไปต่อ */
+function validateStep(step) {
+  const val = id => ($id(id) ? $id(id).value.trim() : '');
+  if (step === 1 && !val('vStart')) { alertError('กรุณาระบุเวลาเริ่มเยี่ยม'); return false; }
+  if (step === 2 && $id('vitalEnabled').checked) {
+    for (const id of ['vTemp', 'vPulse', 'vResp', 'vSys', 'vDia'])
+      if (!val(id)) { alertError('เปิดบันทึกสัญญาณชีพแล้ว กรุณากรอกให้ครบทุกช่อง'); return false; }
+  }
+  if (step === 3 && $id('mentalEnabled').checked && validateMentalHealthForm() !== true) return false;
+  if (step === 5) {
+    if ($id('olderImageEnabled').checked && !_visitOlderFile) { alertError('เปิดแนบรูปผู้ป่วยแล้ว กรุณาเลือกรูป 1 ภาพ'); return false; }
+    if (_visitServiceFiles.length < MIN_SERVICE_IMAGES) { alertError('กรุณาอัปโหลดรูปกิจกรรมการดูแลอย่างน้อย ' + MIN_SERVICE_IMAGES + ' ภาพ'); return false; }
+  }
+  if (step === 6 && $id('locationEnabled').checked && (!val('vLat') || !val('vLng'))) { alertError('เปิดบันทึกพิกัดแล้ว กรุณาระบุตำแหน่งบนแผนที่'); return false; }
+  return true;
 }
 
 function inputFieldWrap(html) { return html; } // ตัวช่วยจัดวาง (ไม่ทำอะไรพิเศษ)
@@ -1623,29 +1724,31 @@ async function saveVisitReport() {
 
   // S1
   const startTime = val('vStart');
-  if (!startTime) return alertError('กรุณาระบุเวลาเริ่มเยี่ยม');
+  if (!startTime) { goStep(1); return alertError('กรุณาระบุเวลาเริ่มเยี่ยม'); }
 
   // S3 สัญญาณชีพ
   const vitalEnabled = $id('vitalEnabled').checked;
   if (vitalEnabled) {
     for (const id of ['vTemp', 'vPulse', 'vResp', 'vSys', 'vDia']) {
-      if (!val(id)) return alertError('เปิดบันทึกสัญญาณชีพแล้ว กรุณากรอกให้ครบทุกช่อง');
+      if (!val(id)) { goStep(2); return alertError('เปิดบันทึกสัญญาณชีพแล้ว กรุณากรอกให้ครบทุกช่อง'); }
     }
   }
 
   // S4 สุขภาพจิต
-  if (validateMentalHealthForm() !== true) return;
+  if (validateMentalHealthForm() !== true) { goStep(3); return; }
 
   // S8 รูปภาพ
   const olderEnabled = $id('olderImageEnabled').checked;
-  if (olderEnabled && !_visitOlderFile) return alertError('เปิดแนบรูปผู้ป่วยแล้ว กรุณาเลือกรูป 1 ภาพ');
-  if (_visitServiceFiles.length < MIN_SERVICE_IMAGES)
-    return alertError('กรุณาอัปโหลดรูปกิจกรรมการดูแลอย่างน้อย ' + MIN_SERVICE_IMAGES + ' ภาพ');
+  if (olderEnabled && !_visitOlderFile) { goStep(5); return alertError('เปิดแนบรูปผู้ป่วยแล้ว กรุณาเลือกรูป 1 ภาพ'); }
+  if (_visitServiceFiles.length < MIN_SERVICE_IMAGES) {
+    goStep(5); return alertError('กรุณาอัปโหลดรูปกิจกรรมการดูแลอย่างน้อย ' + MIN_SERVICE_IMAGES + ' ภาพ');
+  }
 
   // S9 พิกัด
   const locationEnabled = $id('locationEnabled').checked;
-  if (locationEnabled && (!val('vLat') || !val('vLng')))
-    return alertError('เปิดบันทึกพิกัดแล้ว กรุณาระบุตำแหน่งบนแผนที่');
+  if (locationEnabled && (!val('vLat') || !val('vLng'))) {
+    goStep(6); return alertError('เปิดบันทึกพิกัดแล้ว กรุณาระบุตำแหน่งบนแผนที่');
+  }
 
   // อัปโหลดรูป
   let olderImageUrl = '', serviceImageUrls = [];
@@ -1782,7 +1885,7 @@ function renderHistoryHeader(p, totalVisits, lastVisitDate) {
         <div class="min-w-0"><div class="font-600 text-ink truncate">${esc(p.fullName)}</div>
           <div class="text-xs text-muted">${esc(p.patientId)} · ${esc(p.pid)}</div></div>
       </div>
-      <div class="grid grid-cols-4 gap-x-4 justify-start">
+      <div class="grid grid-cols-2 gap-x-4">
         ${row('อายุ', p.age !== '' ? p.age + ' ปี' : '-')}
         ${row('เพศ', p.gender)}
         ${row('บ้าน/หมู่', (p.houseNo || '-') + ' / ' + (p.moo || '-'))}
