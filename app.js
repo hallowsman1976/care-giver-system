@@ -1782,7 +1782,7 @@ function renderHistoryHeader(p, totalVisits, lastVisitDate) {
         <div class="min-w-0"><div class="font-600 text-ink truncate">${esc(p.fullName)}</div>
           <div class="text-xs text-muted">${esc(p.patientId)} · ${esc(p.pid)}</div></div>
       </div>
-      <div class="grid grid-cols-2 gap-x-4">
+      <div class="grid grid-cols-4 gap-x-4">
         ${row('อายุ', p.age !== '' ? p.age + ' ปี' : '-')}
         ${row('เพศ', p.gender)}
         ${row('บ้าน/หมู่', (p.houseNo || '-') + ' / ' + (p.moo || '-'))}
