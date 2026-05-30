@@ -660,9 +660,9 @@ function fileToBase64(file) {
     r.readAsDataURL(file);
   });
 }
-async function uploadOneImage(file) {
+async function uploadOneImage(file, folderKey) {
   const b64 = await fileToBase64(file);
-  const res = await api('uploadImage', { image: b64, filename: file.name }, { loadingText: 'กำลังอัปโหลดรูป...' });
+  const res = await api('uploadImage', { image: b64, filename: file.name, folderKey: folderKey || 'DRIVE_FOLDER_PROFILE' }, { loadingText: 'กำลังอัปโหลดรูป...' });
   if (res.success) return res.data.url;
   throw new Error(res.message || 'อัปโหลดรูปไม่สำเร็จ');
 }
@@ -1698,10 +1698,10 @@ function renderServicePreviews() {
   $id('serviceImgCount').textContent = _visitServiceFiles.length;
   refreshIcons();
 }
-async function uploadManyImages(files) {
+async function uploadManyImages(files, folderKey) {
   const arr = [];
   for (const f of files) arr.push(await fileToBase64(f));
-  const res = await api('uploadImage', { images: arr }, { loadingText: 'กำลังอัปโหลดรูป...' });
+  const res = await api('uploadImage', { images: arr, folderKey: folderKey || 'DRIVE_FOLDER_SERVICE' }, { loadingText: 'กำลังอัปโหลดรูป...' });
   if (res.success) return res.data.urls;
   throw new Error(res.message || 'อัปโหลดรูปไม่สำเร็จ');
 }
@@ -2291,6 +2291,13 @@ async function viewSettings(container) {
     </div>
 
     <div class="bg-card rounded-2xl shadow-card p-5 mb-3">
+      <h3 class="font-600 text-ink mb-1 flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-5 h-5 text-primary"></i> ค่าระบบ (Setting)</h3>
+      <p class="text-sm text-muted mb-3">แก้ไขค่าที่เก็บในชีต Setting เช่น Folder ID รูปภาพ, ชื่อระบบ, URL ของ Web App</p>
+      <div id="settingList"><div class="text-sm text-muted">กำลังโหลด...</div></div>
+      <button id="settingSaveBtn" onclick="saveSettings()" class="btn w-full h-11 rounded-xl bg-primary text-[#1a1000] font-500 mt-2 hidden items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกค่าระบบ</button>
+    </div>
+
+    <div class="bg-card rounded-2xl shadow-card p-5 mb-3">
       <h3 class="font-600 text-ink mb-1 flex items-center gap-2"><i data-lucide="upload" class="w-5 h-5 text-primary"></i> นำเข้าข้อมูลจาก CSV</h3>
       <p class="text-sm text-muted mb-4">นำเข้าทีละหลายรายการจากไฟล์ CSV (แถวแรกต้องเป็นหัวตาราง) — ตรวจสอบความถูกต้องก่อนบันทึก</p>
 
@@ -2326,6 +2333,34 @@ async function viewSettings(container) {
       </div>
     </div>`;
   refreshIcons();
+  loadSettings();
+}
+
+let _settings = [];
+async function loadSettings() {
+  const res = await api('getSettings', {}, { loading: false, silent: true });
+  if (!res.success) { $id('settingList').innerHTML = `<div class="text-sm text-danger">โหลดค่าระบบไม่สำเร็จ (${esc(res.message || '')})</div>`; return; }
+  _settings = res.data || [];
+  if (!_settings.length) { $id('settingList').innerHTML = '<div class="text-sm text-muted">ยังไม่มีค่าระบบ — กดปุ่ม setupSheets() เพื่อสร้างชีต Setting</div>'; return; }
+  $id('settingList').innerHTML = _settings.map((s, i) => `
+    <div class="mb-3">
+      <label class="block text-sm font-500 text-ink mb-0.5">${esc(s.key)}</label>
+      ${s.detail ? `<div class="text-xs text-muted mb-1.5">${esc(s.detail)}</div>` : '<div class="mb-1.5"></div>'}
+      <input id="set_${i}" type="text" value="${esc(s.value)}" class="w-full h-11 px-3 rounded-xl border border-line bg-bg text-ink outline-none focus:border-primary">
+    </div>`).join('');
+  $id('settingSaveBtn').classList.remove('hidden');
+  $id('settingSaveBtn').classList.add('flex');
+  refreshIcons();
+}
+async function saveSettings() {
+  const items = _settings.map((s, i) => ({ key: s.key, value: ($id('set_' + i) ? $id('set_' + i).value.trim() : s.value) }));
+  const res = await api('updateSetting', { settings: items }, { loadingText: 'กำลังบันทึกค่าระบบ...' });
+  if (res.success) {
+    toast('บันทึกค่าระบบสำเร็จ');
+    _settings = items.map((it, i) => ({ key: it.key, value: it.value, detail: _settings[i] ? _settings[i].detail : '' }));
+    const an = items.find(it => it.key === 'APP_NAME');
+    if (an) applyAppName(an.value);
+  }
 }
 async function pingApi() {
   $id('pingResult').innerHTML = '<span class="text-muted text-sm">กำลังตรวจสอบ...</span>';
@@ -2498,11 +2533,33 @@ function importSummaryHtml(success, failed, invalid) {
 // ===============================
 // BOOT
 // ===============================
+
+/** ใช้ชื่อระบบกับ title/หน้า login/sidebar (อิงค่า APP_NAME จากชีต Setting) */
+function applyAppName(name) {
+  name = (name && String(name).trim()) || CONFIG.SYSTEM_NAME;
+  CONFIG.SYSTEM_NAME = name;
+  document.title = name;
+  document.querySelectorAll('[data-app-name]').forEach(function (el) { el.textContent = name; });
+}
+/** ดึง APP_NAME จาก ping (ไม่ต้องล็อกอิน) แล้วนำมาแสดง */
+async function loadAppName() {
+  try {
+    const res = await fetch(CONFIG.API_URL + '?action=ping');
+    const j = await res.json();
+    applyAppName(j && j.success && j.data ? j.data.appName : '');
+  } catch (e) {
+    applyAppName('');
+  }
+}
+
 function boot() {
   // ใช้ธีมที่บันทึกไว้ (หรือตามระบบ)
   const savedTheme = localStorage.getItem('care_theme') ||
     ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
   applyTheme(savedTheme);
+
+  // ดึงชื่อระบบจาก APP_NAME (ไม่บล็อกการแสดงผล)
+  loadAppName();
 
   refreshIcons();
 
