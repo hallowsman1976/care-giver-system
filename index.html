@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2563EB" />
+  <title>ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน</title>
+
+  <!-- ===== Google Font: Mitr ===== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ===== Tailwind CSS (CDN) ===== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // ตั้งค่าธีมสี ฟ้า-ขาว + ฟอนต์ Mitr
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:   '#2563EB',
+            secondary: '#60A5FA',
+            bg:        '#F8FAFC',
+            card:      '#FFFFFF',
+            ink:       '#1E293B',
+            muted:     '#64748B',
+            success:   '#22C55E',
+            warning:   '#F59E0B',
+            danger:    '#EF4444',
+          },
+          fontFamily: {
+            sans: ['Mitr', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            soft: '0 4px 20px -2px rgba(37, 99, 235, 0.10)',
+            card: '0 2px 12px -2px rgba(15, 23, 42, 0.08)',
+          },
+          borderRadius: {
+            xl: '0.9rem',
+            '2xl': '1.25rem',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- ===== SweetAlert2 ===== -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- ===== Leaflet.js (ใช้ในฟอร์มบันทึกพิกัด) ===== -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ===== Lucide Icons ===== -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    html, body { font-family: 'Mitr', sans-serif; background: #F8FAFC; color: #1E293B; -webkit-tap-highlight-color: transparent; }
+
+    /* ===== Loading Overlay ===== */
+    #loadingOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(248, 250, 252, 0.78); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    }
+    #loadingOverlay.show { display: flex; }
+    .spinner {
+      width: 52px; height: 52px; border-radius: 50%;
+      border: 5px solid #DBEAFE; border-top-color: #2563EB;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== Drawer (เมนูเต็มบนมือถือ) ===== */
+    #drawerBackdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; opacity: 0; pointer-events: none; transition: opacity .25s; }
+    #drawerBackdrop.show { opacity: 1; pointer-events: auto; }
+    #drawer { position: fixed; top: 0; left: 0; height: 100%; width: 84%; max-width: 320px; background:#fff; z-index: 61; transform: translateX(-100%); transition: transform .28s ease; box-shadow: 0 0 40px rgba(0,0,0,.2); }
+    #drawer.show { transform: translateX(0); }
+
+    /* scrollbar บาง ๆ */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 8px; }
+
+    .nav-item.active { background: #2563EB; color: #fff; }
+    .nav-item.active i { color: #fff; }
+    .bottom-item.active { color: #2563EB; }
+    .bottom-item.active i { color: #2563EB; }
+
+    /* ปุ่มและ input ให้กดง่ายบนมือถือ */
+    .btn { transition: all .15s; }
+    .btn:active { transform: scale(.97); }
+    input, select, textarea { font-family: 'Mitr', sans-serif; }
+
+    @media print {
+      #appHeader, #sidebar, #bottomNav, .no-print { display: none !important; }
+      #mainContent { margin: 0 !important; padding: 0 !important; }
+    }
+  </style>
+</head>
+
+<body class="font-sans text-ink bg-bg min-h-screen">
+
+  <!-- ============ LOADING OVERLAY ============ -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText" class="text-primary font-medium text-sm">กำลังโหลด...</div>
+  </div>
+
+  <!-- ============ LOGIN VIEW ============ -->
+  <div id="loginView" class="min-h-screen flex items-center justify-center p-5 bg-gradient-to-br from-primary to-secondary">
+    <div class="w-full max-w-md bg-card rounded-2xl shadow-soft p-7 sm:p-9">
+      <div class="text-center mb-7">
+        <div class="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
+          <i data-lucide="heart-handshake" class="w-8 h-8 text-primary"></i>
+        </div>
+        <h1 class="text-xl font-600 text-ink leading-tight">ระบบดูแลผู้มีภาวะพึ่งพิง<br/>ในชุมชน</h1>
+        <p class="text-muted text-sm mt-1">เข้าสู่ระบบเพื่อใช้งาน</p>
+      </div>
+
+      <form id="loginForm" class="space-y-4" autocomplete="on">
+        <div>
+          <label class="block text-sm text-muted mb-1.5">ชื่อผู้ใช้</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="loginUsername" type="text" inputmode="text"
+              class="w-full h-12 pl-11 pr-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+              placeholder="username" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm text-muted mb-1.5">รหัสผ่าน</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="loginPassword" type="password"
+              class="w-full h-12 pl-11 pr-11 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+              placeholder="••••••••" />
+            <button type="button" id="togglePw" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted">
+              <i data-lucide="eye" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit"
+          class="btn w-full h-12 rounded-xl bg-primary text-white font-500 shadow-soft hover:bg-blue-700 flex items-center justify-center gap-2">
+          <i data-lucide="log-in" class="w-5 h-5"></i> เข้าสู่ระบบ
+        </button>
+      </form>
+
+      <p class="text-center text-xs text-muted mt-6">© ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน</p>
+    </div>
+  </div>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="appShell" class="hidden">
+
+    <!-- Sidebar (Desktop) -->
+    <aside id="sidebar" class="hidden md:flex flex-col fixed top-0 left-0 h-full w-64 bg-card border-r border-slate-100 z-40">
+      <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-100">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
+          <i data-lucide="heart-handshake" class="w-5 h-5 text-white"></i>
+        </div>
+        <div class="leading-tight">
+          <div class="text-sm font-600 text-ink">ระบบดูแลผู้พึ่งพิง</div>
+          <div class="text-[11px] text-muted">ในชุมชน</div>
+        </div>
+      </div>
+      <nav id="sidebarMenu" class="flex-1 overflow-y-auto p-3 space-y-1"></nav>
+      <div class="p-3 border-t border-slate-100">
+        <button onclick="logout()" class="btn w-full h-11 rounded-xl bg-danger/10 text-danger font-500 flex items-center justify-center gap-2 hover:bg-danger/20">
+          <i data-lucide="log-out" class="w-5 h-5"></i> ออกจากระบบ
+        </button>
+      </div>
+    </aside>
+
+    <!-- Header -->
+    <header id="appHeader" class="sticky top-0 z-30 h-16 bg-card/90 backdrop-blur border-b border-slate-100 md:ml-64 flex items-center justify-between px-4">
+      <div class="flex items-center gap-2">
+        <button class="md:hidden p-2 -ml-2 text-ink" onclick="openDrawer()">
+          <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+        <h2 id="pageTitle" class="text-base sm:text-lg font-600 text-ink">Dashboard</h2>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <div class="text-right leading-tight hidden sm:block">
+          <div id="hdrName" class="text-sm font-500 text-ink">-</div>
+          <div id="hdrRole" class="text-[11px] text-muted">-</div>
+        </div>
+        <div id="hdrAvatar" class="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-600">A</div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="mainContent" class="md:ml-64 px-4 py-5 pb-24 md:pb-8 max-w-5xl mx-auto">
+      <div id="viewContainer"></div>
+    </main>
+
+    <!-- Bottom Navigation (Mobile) -->
+    <nav id="bottomNav" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-slate-100 h-16 flex items-stretch justify-around px-1"></nav>
+  </div>
+
+  <!-- ============ DRAWER (Mobile full menu) ============ -->
+  <div id="drawerBackdrop" onclick="closeDrawer()"></div>
+  <div id="drawer" class="flex flex-col">
+    <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+          <i data-lucide="heart-handshake" class="w-5 h-5 text-white"></i>
+        </div>
+        <div class="text-sm font-600">เมนูทั้งหมด</div>
+      </div>
+      <button onclick="closeDrawer()" class="p-2 text-muted"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <nav id="drawerMenu" class="flex-1 overflow-y-auto p-3 space-y-1"></nav>
+    <div class="p-3 border-t border-slate-100">
+      <button onclick="logout()" class="btn w-full h-11 rounded-xl bg-danger/10 text-danger font-500 flex items-center justify-center gap-2">
+        <i data-lucide="log-out" class="w-5 h-5"></i> ออกจากระบบ
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ APP SCRIPT ============ -->
+  <script src="app.js"></script>
+</body>
+</html>
