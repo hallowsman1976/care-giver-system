@@ -461,17 +461,35 @@ function placeholder(container, name) {
 
 // ---------- DASHBOARD ----------
 async function viewDashboard(container) {
-  container.innerHTML = skeletonGrid(isAdmin() ? 6 : 4);
-  const res = await api('getDashboardSummary', {}, { loading: false });
-  if (!res.success) { container.innerHTML = placeholderCard('โหลดข้อมูลไม่สำเร็จ'); refreshIcons(); return; }
-  const d = res.data;
+  container.innerHTML = dashSkeleton();
+  const [sumRes, fuRes] = await Promise.all([
+    api('getDashboardSummary', {}, { loading: false }),
+    api('getFollowupCases', {}, { loading: false, silent: true })
+  ]);
+  if (!sumRes.success) { container.innerHTML = placeholderCard('โหลดข้อมูลไม่สำเร็จ'); refreshIcons(); return; }
+  const d = sumRes.data;
+  const followup = (fuRes && fuRes.success) ? (fuRes.data.cases || []) : [];
+  const special = (fuRes && fuRes.success) ? (fuRes.data.specialFollowup || 0) : 0;
 
-  if (d.role === 'admin') {
-    container.innerHTML = renderAdminDashboard(d);
-  } else {
-    container.innerHTML = renderMemberDashboard(d);
-  }
+  container.innerHTML = (d.role === 'admin')
+    ? renderAdminDashboard(d, followup, special)
+    : renderMemberDashboard(d, followup, special);
   refreshIcons();
+  animateDashCounters();
+}
+
+function dashSkeleton() {
+  let s = '<div class="dash-glass rounded-3xl h-44 mb-5 animate-pulse"></div><div class="grid grid-cols-2 lg:grid-cols-4 gap-4">';
+  for (let i = 0; i < 4; i++) s += '<div class="dash-glass rounded-3xl h-32 animate-pulse"></div>';
+  return s + '</div>';
+}
+
+function animateDashCounters() {
+  document.querySelectorAll('.dash-counter').forEach(el => {
+    const target = +el.getAttribute('data-target') || 0, dur = 900, t0 = performance.now();
+    const step = (t) => { const p = Math.min((t - t0) / dur, 1); el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
 }
 
 function statCard(label, value, icon, color) {
@@ -486,42 +504,193 @@ function statCard(label, value, icon, color) {
     </div>`;
 }
 
-function renderAdminDashboard(d) {
-  const cards = [
-    statCard('Care Giver ทั้งหมด', d.totalCareGivers, 'user-cog', '#2563EB'),
-    statCard('ผู้พึ่งพิงทั้งหมด', d.totalPatients, 'users', '#60A5FA'),
-    statCard('มอบหมายแล้ว', d.assignedPatients, 'clipboard-check', '#22C55E'),
-    statCard('ยังไม่มอบหมาย', d.unassignedPatients, 'clipboard-x', '#F59E0B'),
-    statCard('เยี่ยมวันนี้', d.visitsToday, 'calendar-check', '#2563EB'),
-    statCard('เยี่ยมเดือนนี้', d.visitsThisMonth, 'calendar-range', '#60A5FA'),
-  ].join('');
-
-  return `
-    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">${cards}</div>
-    ${recentCasesCard('เคสล่าสุด', d.recentCases || [], true)}
-  `;
+function renderAdminDashboard(d, followup, special) {
+  return dashHero({
+    badge: 'ระบบพร้อมใช้งาน',
+    title: 'Care Dashboard',
+    desc: 'ระบบติดตามการดูแล บันทึกการเยี่ยม และวิเคราะห์ข้อมูลผู้มีภาวะพึ่งพิงในชุมชน',
+    btnLabel: 'นำเข้า Excel หรือ CSV', btnIcon: 'upload-cloud', btnAction: "navigate('settings')",
+    mini: [
+      { v: d.totalPatients, l: 'ผู้ป่วย (คน)' },
+      { v: d.totalCareGivers, l: 'Care Giver (คน)' },
+      { v: d.visitsThisMonth, l: 'เยี่ยมเดือนนี้' }
+    ]
+  })
+    + dashQuick([
+      { icon: 'user-plus', tone: 'blue', title: 'เพิ่มผู้มีภาวะพึ่งพิง', sub: 'ลงทะเบียนผู้ป่วยรายใหม่เข้าระบบ', action: "navigate('patients')" },
+      { icon: 'sliders-horizontal', tone: 'emerald', title: 'ตั้งค่าโปรไฟล์ระบบ', sub: 'ชื่อระบบ โฟลเดอร์รูป และการเชื่อมต่อ', action: "navigate('settings')" }
+    ])
+    + dashProcess()
+    + dashSectionTitle('ภาพรวมสถิติ')
+    + dashStatGrid([
+      { label: 'ผู้ป่วยทั้งหมด', value: d.totalPatients, unit: 'คน', icon: 'users', tone: 'blue', sub: 'มอบหมายแล้ว ' + d.assignedPatients + ' คน' },
+      { label: 'Care Giver ทั้งหมด', value: d.totalCareGivers, unit: 'คน', icon: 'user-cog', tone: 'sky', sub: 'พร้อมดูแล' },
+      { label: 'รายงานการเยี่ยมเดือนนี้', value: d.visitsThisMonth, unit: 'ครั้ง', icon: 'clipboard-check', tone: 'emerald', sub: 'วันนี้ ' + d.visitsToday + ' ครั้ง' },
+      { label: 'ผู้ป่วยที่ต้องติดตามพิเศษ', value: special, unit: 'คน', icon: 'alert-triangle', tone: 'rose', sub: special ? 'ต้องเยี่ยมด่วน' : 'ไม่มีเคสด่วน' }
+    ])
+    + dashFollowupSection(followup);
 }
 
-function renderMemberDashboard(d) {
-  const cards = [
-    statCard('เคสที่รับมอบหมาย', d.assignedCount, 'users', '#2563EB'),
-    statCard('เยี่ยมแล้ววันนี้', d.visitedToday, 'calendar-check', '#22C55E'),
-    statCard('ยังไม่ได้เยี่ยม', d.notVisitedToday, 'calendar-x', '#F59E0B'),
-    statCard('เยี่ยมเดือนนี้', d.visitsThisMonth, 'calendar-range', '#60A5FA'),
-  ].join('');
+function renderMemberDashboard(d, followup, special) {
+  const me = getUser();
+  return dashHero({
+    badge: 'พร้อมดูแล',
+    title: 'สวัสดี ' + (me.fullName || me.username || ''),
+    desc: 'บันทึกการเยี่ยมและติดตามเคสที่คุณรับผิดชอบในชุมชน',
+    btnLabel: 'บันทึกการเยี่ยม', btnIcon: 'file-plus-2', btnAction: "navigate('visitForm')",
+    mini: [
+      { v: d.assignedCount, l: 'เคสที่รับ' },
+      { v: d.visitedToday, l: 'เยี่ยมวันนี้' },
+      { v: d.visitsThisMonth, l: 'เยี่ยมเดือนนี้' }
+    ]
+  })
+    + dashQuick([
+      { icon: 'file-plus-2', tone: 'blue', title: 'บันทึกการเยี่ยม', sub: 'ลงบันทึกการเยี่ยมผู้ป่วย', action: "navigate('visitForm')" },
+      { icon: 'users', tone: 'emerald', title: 'เคสของฉัน', sub: 'ดูเคสที่ได้รับมอบหมาย', action: "navigate('assigned')" }
+    ])
+    + dashSectionTitle('ภาพรวมของฉัน')
+    + dashStatGrid([
+      { label: 'เคสที่รับมอบหมาย', value: d.assignedCount, unit: 'คน', icon: 'users', tone: 'blue' },
+      { label: 'เยี่ยมแล้ววันนี้', value: d.visitedToday, unit: 'คน', icon: 'calendar-check', tone: 'emerald' },
+      { label: 'ยังไม่ได้เยี่ยม', value: d.notVisitedToday, unit: 'คน', icon: 'calendar-x', tone: 'amber' },
+      { label: 'เยี่ยมเดือนนี้', value: d.visitsThisMonth, unit: 'ครั้ง', icon: 'calendar-range', tone: 'sky' }
+    ])
+    + dashFollowupSection(followup);
+}
 
-  return `
-    <div class="grid grid-cols-2 gap-3 mb-5">${cards}</div>
-    <div class="grid grid-cols-2 gap-3 mb-5">
-      <button onclick="navigate('visitForm')" class="btn h-14 rounded-2xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2 shadow-soft">
-        <i data-lucide="file-plus-2" class="w-5 h-5"></i> บันทึกการเยี่ยม
-      </button>
-      <button onclick="navigate('assigned')" class="btn h-14 rounded-2xl bg-card text-primary border border-primary/20 font-500 flex items-center justify-center gap-2">
-        <i data-lucide="users" class="w-5 h-5"></i> เคสของฉัน
-      </button>
-    </div>
-    ${recentCasesCard('การเยี่ยมล่าสุด', d.recentVisits || [], false)}
-  `;
+// ---------- Glass dashboard components ----------
+const DASH_TONES = {
+  blue: 'bg-blue-500/10 text-blue-600', sky: 'bg-sky-500/10 text-sky-500',
+  emerald: 'bg-emerald-500/10 text-emerald-600', rose: 'bg-rose-500/10 text-rose-500',
+  amber: 'bg-amber-500/10 text-amber-600',
+};
+const DASH_SUBTONE = { blue: 'text-blue-600', sky: 'text-sky-500', emerald: 'text-emerald-600', rose: 'text-rose-500', amber: 'text-amber-600' };
+
+function dashHero(o) {
+  return `<section class="relative overflow-hidden rounded-3xl dash-hero text-white p-6 sm:p-7 mb-5 shadow-xl dash-anim">
+      <div class="absolute -top-16 -right-10 w-52 h-52 rounded-full bg-white/10 blur-2xl"></div>
+      <div class="absolute -bottom-20 -left-8 w-56 h-56 rounded-full bg-emerald-300/20 blur-2xl"></div>
+      <div class="relative">
+        <span class="inline-flex items-center gap-2 bg-white/20 backdrop-blur px-3 py-1.5 rounded-full text-xs font-500 mb-3"><span class="live-dot2"></span> ${esc(o.badge)}</span>
+        <h1 class="text-2xl sm:text-3xl font-700 leading-tight">${esc(o.title)}</h1>
+        <p class="text-white/85 text-sm mt-2 max-w-xl">${esc(o.desc)}</p>
+        <button onclick="${o.btnAction}" class="press mt-4 inline-flex items-center gap-2 bg-white text-blue-600 font-600 text-sm px-5 h-11 rounded-2xl shadow-lg hover:shadow-xl transition">
+          ${o.btnIcon ? `<i data-lucide="${o.btnIcon}" class="w-5 h-5"></i>` : ''} ${esc(o.btnLabel)}
+        </button>
+        <div class="grid grid-cols-3 gap-2.5 mt-6 max-w-md">
+          ${o.mini.map(m => `<div class="bg-white/15 backdrop-blur rounded-2xl px-2 py-3 text-center">
+            <div class="dash-counter text-2xl font-700 leading-none" data-target="${Number(m.v) || 0}">0</div>
+            <div class="text-[11px] text-white/80 mt-1">${esc(m.l)}</div></div>`).join('')}
+        </div>
+      </div>
+    </section>`;
+}
+
+function dashQuick(items) {
+  return `<section class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+    ${items.map((it, i) => `
+      <button onclick="${it.action}" class="dash-glass card-hover press rounded-3xl p-5 flex items-center gap-4 text-left dash-anim" style="animation-delay:${0.06 + i * 0.04}s">
+        <div class="w-14 h-14 rounded-2xl ${DASH_TONES[it.tone]} flex items-center justify-center shrink-0"><i data-lucide="${it.icon}" class="w-7 h-7"></i></div>
+        <div class="min-w-0"><div class="font-600 text-ink">${esc(it.title)}</div><div class="text-sm text-muted">${esc(it.sub)}</div></div>
+        <i data-lucide="arrow-up-right" class="w-5 h-5 text-muted ml-auto shrink-0"></i>
+      </button>`).join('')}
+  </section>`;
+}
+
+function dashProcess() {
+  const steps = [
+    { n: 1, icon: 'settings-2', tone: 'blue', t: 'ตั้งค่า', d: 'กำหนดข้อมูลระบบ โฟลเดอร์จัดเก็บ และผู้ใช้งาน' },
+    { n: 2, icon: 'clipboard-list', tone: 'sky', t: 'บันทึกข้อมูล', d: 'บันทึกการเยี่ยม สุขภาพ และกิจกรรมการดูแล' },
+    { n: 3, icon: 'line-chart', tone: 'emerald', t: 'วิเคราะห์ข้อมูล', d: 'สรุปสถิติ แนวโน้ม และเคสที่ต้องติดตามพิเศษ' }
+  ];
+  return `<h2 class="text-sm font-600 text-muted px-1 mb-3">ขั้นตอนการทำงาน</h2>
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      ${steps.map((s, i) => `<div class="dash-glass-soft card-hover rounded-3xl p-5 dash-anim" style="animation-delay:${0.08 + i * 0.04}s">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-12 h-12 rounded-2xl ${DASH_TONES[s.tone]} flex items-center justify-center"><i data-lucide="${s.icon}" class="w-6 h-6"></i></div>
+          <span class="text-3xl font-700 text-ink/10">${s.n}</span>
+        </div>
+        <div class="font-600 text-ink">${esc(s.t)}</div>
+        <p class="text-sm text-muted mt-1">${esc(s.d)}</p>
+      </div>`).join('')}
+    </section>`;
+}
+
+function dashSectionTitle(t) { return `<h2 class="text-sm font-600 text-muted px-1 mb-3">${esc(t)}</h2>`; }
+
+function dashStatGrid(cards) {
+  return `<section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    ${cards.map((c, i) => `<div class="dash-glass card-hover rounded-3xl p-4 dash-anim" style="animation-delay:${0.1 + i * 0.04}s">
+      <div class="w-11 h-11 rounded-2xl ${DASH_TONES[c.tone]} flex items-center justify-center mb-3"><i data-lucide="${c.icon}" class="w-6 h-6"></i></div>
+      <div class="flex items-end gap-1">
+        <span class="dash-counter text-2xl sm:text-3xl font-700 text-ink leading-none" data-target="${Number(c.value) || 0}">0</span>
+        ${c.unit ? `<span class="text-xs text-muted mb-0.5">${esc(c.unit)}</span>` : ''}
+      </div>
+      <div class="text-sm text-muted mt-1.5">${esc(c.label)}</div>
+      ${c.sub ? `<div class="text-xs ${DASH_SUBTONE[c.tone]} font-500 mt-1.5 flex items-center gap-1"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> ${esc(c.sub)}</div>` : ''}
+    </div>`).join('')}
+  </section>`;
+}
+
+function dashPill(status) {
+  const map = { urgent: { l: 'ติดตามด่วน', i: 'alert-triangle' }, watch: { l: 'เฝ้าระวัง', i: 'eye' }, stable: { l: 'ปกติ', i: 'check' } };
+  const s = map[status] || map.stable;
+  return `<span class="dash-pill ${status || 'stable'}"><i data-lucide="${s.i}" class="w-3.5 h-3.5"></i> ${s.l}</span>`;
+}
+
+function dashFollowupSection(cases) {
+  const head = `<div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center"><i data-lucide="bell-ring" class="w-5 h-5"></i></div>
+        <div><h2 class="font-700 text-ink">เคสที่ต้องติดตาม</h2><p class="text-xs text-muted">ผู้ป่วยที่ใกล้ครบกำหนดเยี่ยมหรือควรดูแลเร่งด่วน</p></div>
+      </div>
+      <button onclick="navigate('patients')" class="hidden sm:inline-flex items-center gap-1.5 text-sm font-500 text-blue-600 press">ดูทั้งหมด <i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+    </div>`;
+
+  if (!cases.length) {
+    return `<section class="dash-glass rounded-3xl p-5 sm:p-6 dash-anim" style="animation-delay:.16s">${head}
+      <div class="text-center text-muted text-sm py-8">ยังไม่มีเคสที่ต้องติดตาม</div></section>`;
+  }
+
+  const rows = cases.map(p => `<tr class="border-t border-line hover:bg-subtle transition">
+      <td class="py-3 px-4"><div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl grad-bg2g text-white text-sm font-600 flex items-center justify-center shrink-0">${esc((p.name || '?').charAt(0))}</div>
+        <span class="font-500 text-ink">${esc(p.name)}</span></div></td>
+      <td class="py-3 px-4 text-muted">${esc(p.village)}</td>
+      <td class="py-3 px-4 text-muted">${esc(p.caregiver)}</td>
+      <td class="py-3 px-4 text-muted">${esc(p.lastVisit)}</td>
+      <td class="py-3 px-4">${dashPill(p.status)}</td>
+      <td class="py-3 px-4 text-right">
+        <button onclick="navigate('history', { patientId: '${esc(p.patientId)}' })" class="press inline-flex items-center gap-1.5 text-sm font-500 text-blue-600 bg-blue-500/10 hover:bg-blue-500/20 px-3 h-9 rounded-xl transition"><i data-lucide="history" class="w-4 h-4"></i> ประวัติ</button>
+      </td></tr>`).join('');
+
+  const mobileCards = cases.map(p => `<div class="dash-glass-soft rounded-2xl p-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl grad-bg2g text-white font-600 flex items-center justify-center shrink-0">${esc((p.name || '?').charAt(0))}</div>
+        <div class="flex-1 min-w-0"><div class="font-600 text-ink truncate">${esc(p.name)}</div><div class="text-xs text-muted">${esc(p.village)}</div></div>
+        ${dashPill(p.status)}
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-3 text-sm">
+        <div><div class="text-xs text-muted">Care Giver</div><div class="text-ink">${esc(p.caregiver)}</div></div>
+        <div><div class="text-xs text-muted">เยี่ยมล่าสุด</div><div class="text-ink">${esc(p.lastVisit)}</div></div>
+      </div>
+      <button onclick="navigate('history', { patientId: '${esc(p.patientId)}' })" class="press w-full mt-3 inline-flex items-center justify-center gap-1.5 text-sm font-500 text-blue-600 bg-blue-500/10 hover:bg-blue-500/20 h-10 rounded-2xl transition"><i data-lucide="history" class="w-4 h-4"></i> ดูประวัติ</button>
+    </div>`).join('');
+
+  return `<section class="dash-glass rounded-3xl p-5 sm:p-6 dash-anim" style="animation-delay:.16s">
+      ${head}
+      <div class="hidden md:block overflow-hidden rounded-2xl border border-line">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-subtle text-muted text-left">
+            <th class="py-3 px-4 font-500">ชื่อผู้ป่วย</th><th class="py-3 px-4 font-500">หมู่บ้าน</th>
+            <th class="py-3 px-4 font-500">Care Giver</th><th class="py-3 px-4 font-500">เยี่ยมล่าสุด</th>
+            <th class="py-3 px-4 font-500">สถานะ</th><th class="py-3 px-4 font-500 text-right">จัดการ</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="md:hidden space-y-3">${mobileCards}</div>
+    </section>`;
 }
 
 function recentCasesCard(title, items, showCaregiver) {
@@ -595,7 +764,7 @@ function closeModal() { const r = $id('modalRoot'); if (r) r.innerHTML = ''; }
 function modalFooter(submitLabel, submitFn) {
   return `<div class="flex gap-2">
       <button onclick="closeModal()" class="btn flex-1 h-11 rounded-xl bg-subtle text-ink font-500">ยกเลิก</button>
-      <button onclick="${submitFn}" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500">${esc(submitLabel)}</button>
+      <button onclick="${submitFn}" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500">${esc(submitLabel)}</button>
     </div>`;
 }
 
@@ -640,7 +809,7 @@ function listToolbar(o) {
          class="w-full h-11 pl-10 pr-3 rounded-xl border border-line focus:border-primary outline-none">
      </div>
      ${o.extra || ''}
-     <button onclick="${o.addFn}" class="btn h-11 px-4 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2 shrink-0">
+     <button onclick="${o.addFn}" class="btn h-11 px-4 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2 shrink-0">
        <i data-lucide="plus" class="w-5 h-5"></i> ${esc(o.addLabel)}
      </button>
    </div>`;
@@ -1123,7 +1292,7 @@ function renderAssignList() {
             ${a ? ('ผู้ดูแล: ' + esc(a.caregiverName) + ' · ' + esc(a.caregiverCode)) : 'ยังไม่มอบหมาย'}</div>
         </div>
         <button onclick="ptAssign('${esc(p.patientId)}')"
-          class="btn h-10 px-3 rounded-xl text-sm font-500 flex items-center gap-1.5 shrink-0 ${a ? 'bg-subtle text-ink' : 'bg-primary text-[#1a1000]'}">
+          class="btn h-10 px-3 rounded-xl text-sm font-500 flex items-center gap-1.5 shrink-0 ${a ? 'bg-subtle text-ink' : 'bg-primary text-white'}">
           <i data-lucide="${a ? 'repeat' : 'user-plus'}" class="w-4 h-4"></i> ${a ? 'เปลี่ยน' : 'มอบหมาย'}
         </button>
       </div>`;
@@ -1339,11 +1508,11 @@ async function loadVisitForm(container, patientId) {
   // ----- รวมเป็น 7 ขั้น -----
   container.innerHTML = `
     <!-- หัวข้อผู้ป่วย -->
-    <div class="bg-primary text-[#1a1000] rounded-2xl shadow-soft p-4 mb-3 flex items-center gap-3">
+    <div class="bg-primary text-white rounded-2xl shadow-soft p-4 mb-3 flex items-center gap-3">
       <img src="${esc(p.imageUrl)}" class="w-14 h-14 rounded-xl object-cover bg-black/10 shrink-0">
       <div class="min-w-0">
         <div class="font-600 truncate">${esc(p.fullName)}</div>
-        <div class="text-xs text-[#1a1000]/70">${esc(p.patientId)} · อายุ ${p.age !== '' ? esc(p.age) : '-'} ปี · ครั้งที่เยี่ยม ${nextNo}</div>
+        <div class="text-xs text-white/80">${esc(p.patientId)} · อายุ ${p.age !== '' ? esc(p.age) : '-'} ปี · ครั้งที่เยี่ยม ${nextNo}</div>
       </div>
     </div>
 
@@ -1400,7 +1569,7 @@ function renderStepper() {
   let row = '';
   for (let i = 1; i <= total; i++) {
     const done = i < cur, active = i === cur;
-    const cls = active ? 'bg-primary text-[#1a1000] border-primary ring-4 ring-primary/25'
+    const cls = active ? 'bg-primary text-white border-primary ring-4 ring-primary/25'
       : done ? 'bg-success text-white border-success' : 'bg-card text-muted border-line';
     row += `<button type="button" onclick="goStep(${i})" title="${esc(VISIT_STEPS[i - 1].t)}"
         class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-600 shrink-0 transition-all ${cls}">
@@ -1424,8 +1593,8 @@ function renderVisitNav() {
     ? `<button type="button" onclick="prevStep()" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2"><i data-lucide="arrow-left" class="w-5 h-5"></i> ย้อนกลับ</button>`
     : `<button type="button" onclick="navigate('${isAdmin() ? 'patients' : 'dashboard'}')" class="btn h-12 px-5 rounded-xl bg-subtle text-ink font-500 flex items-center gap-2"><i data-lucide="x" class="w-5 h-5"></i> ยกเลิก</button>`;
   const next = cur < total
-    ? `<button type="button" onclick="nextStep()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2">ถัดไป <i data-lucide="arrow-right" class="w-5 h-5"></i></button>`
-    : `<button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft flex items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกการเยี่ยม</button>`;
+    ? `<button type="button" onclick="nextStep()" class="btn flex-1 h-12 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2">ถัดไป <i data-lucide="arrow-right" class="w-5 h-5"></i></button>`
+    : `<button type="button" onclick="saveVisitReport()" class="btn flex-1 h-12 rounded-xl bg-primary text-white font-500 shadow-soft flex items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกการเยี่ยม</button>`;
   $id('vNav').innerHTML = `<div class="flex gap-2 mt-4 mb-6">${back}${next}</div>`;
   refreshIcons();
 }
@@ -1542,7 +1711,7 @@ function toggleSwitch(id, label, onchange, checked) {
 function radioCard(name, value, label, onchange) {
   return `<label class="flex-1 min-w-0">
     <input type="radio" name="${name}" value="${esc(value)}" class="peer sr-only" onchange="${onchange}">
-    <span class="block text-center text-sm py-2.5 px-2 rounded-xl border border-line cursor-pointer peer-checked:bg-primary peer-checked:text-[#1a1000] peer-checked:border-primary">${esc(label)}</span>
+    <span class="block text-center text-sm py-2.5 px-2 rounded-xl border border-line cursor-pointer peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary">${esc(label)}</span>
   </label>`;
 }
 function radioRow(name, options, onchange) {
@@ -1974,7 +2143,7 @@ function renderVisitCard(v) {
 
   return `<div class="bg-card rounded-2xl shadow-card overflow-hidden">
       <div class="bg-primary/5 px-4 py-3 flex items-center justify-between">
-        <span class="flex items-center gap-2"><span class="w-7 h-7 rounded-lg bg-primary text-[#1a1000] text-sm font-600 flex items-center justify-center">${esc(v.visitNo)}</span><span class="font-500 text-ink">ครั้งที่ ${esc(v.visitNo)}</span></span>
+        <span class="flex items-center gap-2"><span class="w-7 h-7 rounded-lg bg-primary text-white text-sm font-600 flex items-center justify-center">${esc(v.visitNo)}</span><span class="font-500 text-ink">ครั้งที่ ${esc(v.visitNo)}</span></span>
         <span class="text-sm text-muted">${formatThaiDate(v.visitDate)}</span>
       </div>
       <div class="p-4 space-y-3">${inner}</div>
@@ -2041,7 +2210,7 @@ function renderAssignedList() {
         </div>
       </div>
       <div class="grid grid-cols-2 gap-2 mt-3">
-        <button onclick="navigate('visitForm', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-1.5"><i data-lucide="file-plus-2" class="w-4 h-4"></i> บันทึกเยี่ยม</button>
+        <button onclick="navigate('visitForm', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-1.5"><i data-lucide="file-plus-2" class="w-4 h-4"></i> บันทึกเยี่ยม</button>
         <button onclick="navigate('history', { patientId: '${esc(p.patientId)}' })" class="btn h-10 rounded-xl bg-primary/10 text-primary font-500 flex items-center justify-center gap-1.5"><i data-lucide="history" class="w-4 h-4"></i> ดูประวัติ</button>
       </div>
     </div>`).join('') + `</div>`;
@@ -2110,7 +2279,7 @@ async function viewDailyReport(container) {
           <input id="drSearch" type="text" placeholder="ชื่อผู้ป่วย" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
       </div>
       <div class="flex gap-2 mt-3">
-        <button onclick="loadDailyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+        <button onclick="loadDailyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
         <button onclick="exportDailyCSV()" class="btn h-11 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-5 h-5"></i> CSV</button>
         <button onclick="window.print()" class="btn h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5"></i></button>
       </div>
@@ -2131,9 +2300,9 @@ async function loadDailyReport() {
 }
 function renderDailyReport() {
   const d = _dailyData;
-  const head = `<div class="bg-primary text-[#1a1000] rounded-2xl p-4 mb-3 flex items-center justify-between">
-      <div><div class="text-sm text-[#1a1000]/70">รายงานการเยี่ยมวันที่</div><div class="font-600">${formatThaiDate(d.date)}</div></div>
-      <div class="text-right"><div class="text-3xl font-600 leading-none">${d.total}</div><div class="text-xs text-[#1a1000]/70">ครั้ง</div></div>
+  const head = `<div class="bg-primary text-white rounded-2xl p-4 mb-3 flex items-center justify-between">
+      <div><div class="text-sm text-white/80">รายงานการเยี่ยมวันที่</div><div class="font-600">${formatThaiDate(d.date)}</div></div>
+      <div class="text-right"><div class="text-3xl font-600 leading-none">${d.total}</div><div class="text-xs text-white/80">ครั้ง</div></div>
     </div>`;
   if (!d.visits.length) { $id('drResult').innerHTML = head + emptyState('ไม่มีการเยี่ยมในวันที่เลือก'); refreshIcons(); return; }
   const list = d.visits.map(v => {
@@ -2200,7 +2369,7 @@ async function viewMonthlyReport(container) {
           <input id="mrMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
       </div>
       <div class="flex gap-2 mt-3">
-        <button onclick="loadMonthlyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+        <button onclick="loadMonthlyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
         <button onclick="exportMonthlyCSV()" class="btn h-11 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-5 h-5"></i> CSV</button>
         <button onclick="window.print()" class="btn h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5"></i></button>
       </div>
@@ -2223,11 +2392,11 @@ function renderMonthlyReport() {
   const acts = Object.keys(d.activityCounts || {}).map(k => ({ name: k, count: d.activityCounts[k] })).sort((a, b) => b.count - a.count);
   const maxCount = acts.length ? acts[0].count : 1;
 
-  const summary = `<div class="bg-primary text-[#1a1000] rounded-2xl p-4 mb-3">
-      <div class="text-sm text-[#1a1000]/70">รายงานเดือน ${THAI_MONTHS[d.month - 1]} ${d.yearTH}</div>
+  const summary = `<div class="bg-primary text-white rounded-2xl p-4 mb-3">
+      <div class="text-sm text-white/80">รายงานเดือน ${THAI_MONTHS[d.month - 1]} ${d.yearTH}</div>
       <div class="grid grid-cols-2 gap-3 mt-2">
-        <div><div class="text-3xl font-600 leading-none">${d.totalVisits}</div><div class="text-xs text-[#1a1000]/70 mt-1">ครั้งการเยี่ยมรวม</div></div>
-        <div><div class="text-3xl font-600 leading-none">${d.patientsCovered}</div><div class="text-xs text-[#1a1000]/70 mt-1">ผู้ป่วยที่ดูแล</div></div>
+        <div><div class="text-3xl font-600 leading-none">${d.totalVisits}</div><div class="text-xs text-white/80 mt-1">ครั้งการเยี่ยมรวม</div></div>
+        <div><div class="text-3xl font-600 leading-none">${d.patientsCovered}</div><div class="text-xs text-white/80 mt-1">ผู้ป่วยที่ดูแล</div></div>
       </div>
     </div>`;
 
@@ -2294,7 +2463,7 @@ async function viewSettings(container) {
       <h3 class="font-600 text-ink mb-1 flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-5 h-5 text-primary"></i> ค่าระบบ (Setting)</h3>
       <p class="text-sm text-muted mb-3">แก้ไขค่าที่เก็บในชีต Setting เช่น Folder ID รูปภาพ, ชื่อระบบ, URL ของ Web App</p>
       <div id="settingList"><div class="text-sm text-muted">กำลังโหลด...</div></div>
-      <button id="settingSaveBtn" onclick="saveSettings()" class="btn w-full h-11 rounded-xl bg-primary text-[#1a1000] font-500 mt-2 hidden items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกค่าระบบ</button>
+      <button id="settingSaveBtn" onclick="saveSettings()" class="btn w-full h-11 rounded-xl bg-primary text-white font-500 mt-2 hidden items-center justify-center gap-2"><i data-lucide="save" class="w-5 h-5"></i> บันทึกค่าระบบ</button>
     </div>
 
     <div class="bg-card rounded-2xl shadow-card p-5 mb-3">
@@ -2307,7 +2476,7 @@ async function viewSettings(container) {
           <button onclick="downloadCsvTemplate('patients')" class="text-xs text-primary inline-flex items-center gap-1"><i data-lucide="file-down" class="w-3.5 h-3.5"></i> เทมเพลต</button>
         </div>
         <input id="ptCsvFile" type="file" accept=".csv,text/csv" class="block w-full text-sm text-muted file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-500 file:cursor-pointer mb-2">
-        <button onclick="importCsv('patients')" class="btn w-full h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้าผู้ป่วย</button>
+        <button onclick="importCsv('patients')" class="btn w-full h-10 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้าผู้ป่วย</button>
         <div id="ptCsvResult" class="mt-2"></div>
         <p class="text-[11px] text-muted mt-2 leading-relaxed">คอลัมน์: ชื่อ-สกุล, เลขบัตรประชาชน, วันเกิด, เพศ, บ้านเลขที่, หมู่, ผู้ดูแล, เบอร์โทรผู้ดูแล</p>
       </div>
@@ -2318,7 +2487,7 @@ async function viewSettings(container) {
           <button onclick="downloadCsvTemplate('caregivers')" class="text-xs text-primary inline-flex items-center gap-1"><i data-lucide="file-down" class="w-3.5 h-3.5"></i> เทมเพลต</button>
         </div>
         <input id="cgCsvFile" type="file" accept=".csv,text/csv" class="block w-full text-sm text-muted file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-500 file:cursor-pointer mb-2">
-        <button onclick="importCsv('caregivers')" class="btn w-full h-10 rounded-xl bg-primary text-[#1a1000] font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้า Care Giver</button>
+        <button onclick="importCsv('caregivers')" class="btn w-full h-10 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> นำเข้า Care Giver</button>
         <div id="cgCsvResult" class="mt-2"></div>
         <p class="text-[11px] text-muted mt-2 leading-relaxed">คอลัมน์: ชื่อ-สกุล, เลขบัตรประชาชน, เบอร์โทร, บ้านเลขที่, หมู่, ชื่อผู้ใช้, รหัสผ่าน</p>
       </div>
