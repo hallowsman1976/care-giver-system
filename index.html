@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#d4a017" />
+  <meta name="theme-color" content="#2563eb" />
   <title>ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน</title>
 
   <!-- ===== Google Font: Kanit ===== -->
@@ -61,24 +61,51 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/th.js"></script>
 
   <style>
-    /* ===== ธีมสว่าง (โทนทอง-ครีม) ===== */
+    /* ===== ธีมสว่าง (โทนกลาส ฟ้า-เขียว-ครีม) ===== */
     :root{
-      --c-primary:212 160 23; --c-primary2:184 134 11; --c-secondary:240 208 96;
-      --c-bg:250 250 247; --c-bg2:243 242 235; --c-card:255 255 255;
-      --c-border:232 228 212; --c-ink:26 26 26; --c-muted:85 85 80;
+      --c-primary:37 99 235; --c-primary2:29 78 216; --c-secondary:16 185 129;
+      --c-bg:244 248 255; --c-bg2:232 241 254; --c-card:255 255 255;
+      --c-border:219 230 245; --c-ink:15 33 63; --c-muted:91 107 133;
       --c-success:22 163 74; --c-warning:217 119 6; --c-danger:220 38 38;
-      --shadow-md:0 4px 24px rgba(0,0,0,.10);
+      --shadow-md:0 10px 36px -14px rgba(2,32,71,.20);
     }
     /* ===== ธีมมืด ===== */
     html.dark{
-      --c-primary:240 192 64; --c-primary2:212 168 32; --c-secondary:96 72 0;
-      --c-bg:17 17 24; --c-bg2:26 26 36; --c-card:30 30 42;
-      --c-border:46 46 64; --c-ink:240 240 245; --c-muted:176 176 192;
+      --c-primary:96 165 250; --c-primary2:59 130 246; --c-secondary:52 211 153;
+      --c-bg:11 18 32; --c-bg2:19 28 46; --c-card:19 27 43;
+      --c-border:37 50 74; --c-ink:232 238 249; --c-muted:148 166 196;
       --c-success:34 197 94; --c-warning:217 119 6; --c-danger:248 113 113;
-      --shadow-md:0 4px 24px rgba(0,0,0,.45);
+      --shadow-md:0 10px 36px -14px rgba(0,0,0,.55);
     }
 
-    html, body { font-family:'Kanit',sans-serif; background:rgb(var(--c-bg)); color:rgb(var(--c-ink)); -webkit-tap-highlight-color:transparent; transition:background .3s,color .3s; }
+    html, body {
+      font-family:'Kanit',sans-serif; color:rgb(var(--c-ink));
+      -webkit-tap-highlight-color:transparent; transition:background .3s,color .3s;
+      background:
+        radial-gradient(1100px 560px at 112% -12%, rgba(56,189,248,.22), transparent 60%),
+        radial-gradient(860px 480px at -12% 8%, rgba(16,185,129,.16), transparent 55%),
+        linear-gradient(180deg,#eaf4ff 0%, #f4fbff 30%, #fdf8ec 100%);
+      background-attachment:fixed;
+    }
+    html.dark body {
+      background:
+        radial-gradient(1000px 520px at 110% -10%, rgba(37,99,235,.22), transparent 60%),
+        radial-gradient(820px 460px at -10% 6%, rgba(16,185,129,.14), transparent 55%),
+        linear-gradient(180deg,#0b1220 0%, #0d1424 40%, #0b1220 100%);
+      background-attachment:fixed;
+    }
+
+    /* การ์ดทั่วไปเป็นกระจก (เฉพาะการ์ดกลาง bg-card + เงา) */
+    .bg-card.shadow-card, .bg-card.shadow-soft {
+      background-color: rgba(255,255,255,.72) !important;
+      backdrop-filter: blur(15px) saturate(140%);
+      -webkit-backdrop-filter: blur(15px) saturate(140%);
+      border: 1px solid rgba(255,255,255,.55);
+    }
+    html.dark .bg-card.shadow-card, html.dark .bg-card.shadow-soft {
+      background-color: rgba(19,27,43,.6) !important;
+      border-color: rgba(255,255,255,.08);
+    }
     input, select, textarea { font-family:'Kanit',sans-serif; }
 
     /* ===== Loading Overlay ===== */
@@ -116,9 +143,31 @@
     .flatpickr-day { color:rgb(var(--c-ink)); }
     .flatpickr-day:hover, .flatpickr-day.prevMonthDay:hover, .flatpickr-day.nextMonthDay:hover { background:rgb(var(--c-bg2)); border-color:rgb(var(--c-bg2)); }
     .flatpickr-day.today { border-color:rgb(var(--c-primary)); }
-    .flatpickr-day.selected, .flatpickr-day.selected:hover { background:rgb(var(--c-primary)); border-color:rgb(var(--c-primary)); color:#1a1000; }
+    .flatpickr-day.selected, .flatpickr-day.selected:hover { background:rgb(var(--c-primary)); border-color:rgb(var(--c-primary)); color:#fff; }
     .flatpickr-day.flatpickr-disabled, .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay { color:rgb(var(--c-muted)); opacity:.55; }
     .flatpickr-prev-month svg, .flatpickr-next-month svg { fill:rgb(var(--c-muted)); }
+
+    /* ===== Glass Dashboard (ฟ้า-เขียว) ===== */
+    .dash-glass { background: rgba(255,255,255,.72); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border: 1px solid rgba(255,255,255,.6); box-shadow: 0 10px 36px -14px rgba(2,32,71,.20); }
+    .dash-glass-soft { background: rgba(255,255,255,.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(226,232,240,.7); }
+    html.dark .dash-glass { background: rgba(30,30,42,.58); border-color: rgba(255,255,255,.08); box-shadow: 0 10px 36px -14px rgba(0,0,0,.5); }
+    html.dark .dash-glass-soft { background: rgba(30,30,42,.5); border-color: rgba(255,255,255,.07); }
+    .dash-hero { background: linear-gradient(135deg, rgba(37,99,235,.96), rgba(16,185,129,.93)); }
+    .grad-bg2g { background: linear-gradient(135deg,#2563eb,#10b981); }
+    .dash-anim { opacity: 0; animation: dashUp .55s cubic-bezier(.4,0,.2,1) forwards; }
+    @keyframes dashUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    .card-hover { transition: transform .25s, box-shadow .25s; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 48px -18px rgba(2,32,71,.28); }
+    .press { transition: transform .12s; } .press:active { transform: scale(.95); }
+    .dash-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .dash-pill.urgent { background: #fee2e2; color: #dc2626; }
+    .dash-pill.watch { background: #fef3c7; color: #b45309; }
+    .dash-pill.stable { background: #dcfce7; color: #15803d; }
+    html.dark .dash-pill.urgent { background: rgba(220,38,38,.2); color: #fca5a5; }
+    html.dark .dash-pill.watch { background: rgba(217,119,6,.2); color: #fcd34d; }
+    html.dark .dash-pill.stable { background: rgba(22,163,74,.2); color: #86efac; }
+    .live-dot2 { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: ping2 1.6s infinite; }
+    @keyframes ping2 { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.5); } 70% { box-shadow: 0 0 0 8px rgba(255,255,255,0); } 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } }
 
     @media print {
       #appHeader, #sidebar, #bottomNav, .no-print { display:none !important; }
@@ -173,7 +222,7 @@
         </div>
 
         <button type="submit"
-          class="btn w-full h-12 rounded-xl bg-primary text-[#1a1000] font-500 shadow-soft hover:bg-primary-2 flex items-center justify-center gap-2">
+          class="btn w-full h-12 rounded-xl bg-primary text-white font-500 shadow-soft hover:bg-primary-2 flex items-center justify-center gap-2">
           <i data-lucide="log-in" class="w-5 h-5"></i> เข้าสู่ระบบ
         </button>
       </form>
