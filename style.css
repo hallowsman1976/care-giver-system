@@ -1,0 +1,140 @@
+/* ============================================================
+   Care Dashboard — ระบบดูแลผู้มีภาวะพึ่งพิง
+   Modern Clean • Glassmorphism • ฟ้า/ครีม/เขียว
+   ============================================================ */
+
+:root {
+  --blue: #2563eb;
+  --blue-700: #1d4ed8;
+  --sky: #38bdf8;
+  --green: #16a34a;
+  --emerald: #10b981;
+  --cream: #fdf8ec;
+  --cream-2: #fbf2dd;
+  --ink: #0f213f;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --glass-shadow: 0 10px 40px -12px rgba(2, 32, 71, .18);
+}
+
+* { font-family: 'Prompt', 'Noto Sans Thai', sans-serif; box-sizing: border-box; }
+html, body { overflow-x: hidden; margin: 0; }
+
+body {
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 560px at 112% -12%, rgba(56, 189, 248, .22), transparent 60%),
+    radial-gradient(860px 480px at -12% 8%, rgba(16, 185, 129, .16), transparent 55%),
+    linear-gradient(180deg, #eaf4ff 0%, #f4fbff 28%, var(--cream) 100%);
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Glass surfaces ---------- */
+.glass {
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, .6);
+  box-shadow: var(--glass-shadow);
+}
+.glass-soft {
+  background: rgba(255, 255, 255, .62);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  border: 1px solid rgba(226, 232, 240, .8);
+}
+
+/* ---------- Gradients ---------- */
+.grad-bluegreen { background: linear-gradient(135deg, var(--blue) 0%, var(--emerald) 100%); }
+.grad-hero {
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, .95) 0%, rgba(16, 185, 129, .92) 100%);
+}
+.grad-text {
+  background: linear-gradient(120deg, var(--blue), var(--emerald));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ---------- Sidebar nav ---------- */
+.nav-item { transition: background .2s, color .2s, transform .15s; }
+.nav-item:hover { background: rgba(37, 99, 235, .07); }
+.nav-item.active {
+  background: linear-gradient(135deg, var(--blue), var(--emerald));
+  color: #fff !important;
+  box-shadow: 0 10px 22px -8px rgba(37, 99, 235, .55);
+}
+.nav-item.active i, .nav-item.active span { color: #fff !important; }
+
+.bottom-item { transition: color .2s, transform .15s; }
+.bottom-item.active { color: var(--blue); }
+.bottom-item.active .bn-ico {
+  background: linear-gradient(135deg, var(--blue), var(--emerald));
+  color: #fff;
+  box-shadow: 0 8px 18px -6px rgba(37, 99, 235, .55);
+}
+
+/* ---------- Interactions ---------- */
+.card-hover { transition: transform .25s cubic-bezier(.4, 0, .2, 1), box-shadow .25s; }
+.card-hover:hover { transform: translateY(-4px); box-shadow: 0 22px 52px -18px rgba(2, 32, 71, .30); }
+.press { transition: transform .12s; }
+.press:active { transform: scale(.95); }
+
+/* ---------- Entrance animation ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.anim { opacity: 0; animation: fadeUp .6s cubic-bezier(.4, 0, .2, 1) forwards; }
+
+/* ---------- Live badge ---------- */
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #16a34a;
+  animation: ping 1.6s infinite;
+}
+@keyframes ping {
+  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, .55); }
+  70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
+/* ---------- Floating Care Assistant ---------- */
+.fab { position: relative; }
+.fab::after {
+  content: ''; position: absolute; inset: 0; border-radius: 9999px;
+  background: linear-gradient(135deg, var(--blue), var(--emerald));
+  animation: fabpulse 2.6s ease-out infinite; z-index: -1;
+}
+@keyframes fabpulse {
+  0% { transform: scale(1); opacity: .55; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* ---------- Toast ---------- */
+#toastWrap { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; width: max-content; max-width: 92vw; }
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 16px; font-size: 14px; font-weight: 500;
+  background: rgba(255, 255, 255, .9); backdrop-filter: blur(12px);
+  box-shadow: 0 14px 40px -12px rgba(2, 32, 71, .35);
+  border: 1px solid rgba(226, 232, 240, .9);
+  animation: fadeUp .3s ease both;
+}
+.toast.success { border-left: 4px solid var(--green); }
+.toast.info { border-left: 4px solid var(--blue); }
+.toast.warn { border-left: 4px solid #f59e0b; }
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ---------- Status pills ---------- */
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.pill-urgent { background: #fee2e2; color: #dc2626; }
+.pill-watch { background: #fef3c7; color: #b45309; }
+.pill-stable { background: #dcfce7; color: #15803d; }
+
+/* hide native number spinners */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
