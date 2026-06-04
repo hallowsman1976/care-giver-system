@@ -2368,8 +2368,9 @@ async function viewMonthlyReport(container) {
         <div><label class="block text-sm text-muted mb-1.5">หมู่</label>
           <input id="mrMoo" type="text" placeholder="ทุกหมู่" class="w-full h-11 px-3 rounded-xl border border-line outline-none focus:border-primary"></div>
       </div>
-      <div class="flex gap-2 mt-3">
-        <button onclick="loadMonthlyReport()" class="btn flex-1 h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button onclick="loadMonthlyReport()" class="btn flex-1 min-w-[140px] h-11 rounded-xl bg-primary text-white font-500 flex items-center justify-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> ดูรายงาน</button>
+        <button onclick="exportCgMonthlyReport()" class="btn h-11 px-4 rounded-xl bg-secondary/15 text-secondary font-500 flex items-center gap-2" title="สร้างรายงานภาพกิจกรรม (Google Doc + PDF)"><i data-lucide="file-text" class="w-5 h-5"></i> รายงานภาพกิจกรรม</button>
         <button onclick="exportMonthlyCSV()" class="btn h-11 px-4 rounded-xl bg-success/10 text-success font-500 flex items-center gap-2"><i data-lucide="file-down" class="w-5 h-5"></i> CSV</button>
         <button onclick="window.print()" class="btn h-11 px-4 rounded-xl bg-primary/10 text-primary font-500 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5"></i></button>
       </div>
@@ -2433,6 +2434,52 @@ function exportMonthlyCSV() {
   const d = _monthlyData;
   const cols = [{ label: 'ผู้ป่วย', key: 'patientName' }, { label: 'จำนวนครั้งที่เยี่ยม', key: 'visits' }];
   exportCSV('รายงานรายเดือน_' + d.month + '-' + d.yearTH + '.csv', cols, d.byPatient || []);
+}
+
+/**
+ * เรียก backend สร้างรายงานภาพกิจกรรมของ CG รายเดือน → ได้ Google Doc + PDF
+ * admin ต้องเลือก Care Giver ก่อน (ไม่งั้นจะแจ้งเตือน)
+ */
+async function exportCgMonthlyReport() {
+  const month = $id('mrMonth') && $id('mrMonth').value;
+  const year  = $id('mrYear')  && $id('mrYear').value;
+  if (!month || !year) return alertError('กรุณาเลือกเดือนและปีก่อนสร้างรายงาน');
+
+  const payload = { month: month, year: year };
+  if (isAdmin()) {
+    const cg = $id('mrCg') ? $id('mrCg').value : '';
+    if (!cg) return alertError('กรุณาเลือก Care Giver ที่ต้องการออกรายงาน');
+    payload.caregiverCode = cg;
+  }
+
+  const res = await api('exportCgMonthlyReport', payload, { loadingText: 'กำลังสร้างรายงาน...' });
+  if (!res.success) return;
+
+  const d = res.data || {};
+  Swal.fire({
+    icon: 'success',
+    title: 'สร้างรายงานสำเร็จ',
+    html:
+      `<div class="text-left text-sm leading-relaxed">
+         <div><b>CG :</b> ${esc(d.caregiverName || '-')}</div>
+         <div><b>ประจำเดือน :</b> ${esc(d.period || '-')}</div>
+         <div><b>จำนวนเคสในรายงาน :</b> ${esc(d.visitsCount || 0)} เคส</div>
+         <div class="flex flex-col gap-2 mt-4">
+           <a href="${esc(d.pdfUrl)}" target="_blank" rel="noopener"
+              class="inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-500 text-white font-500">
+              📄 เปิดไฟล์ PDF
+           </a>
+           <a href="${esc(d.docUrl)}" target="_blank" rel="noopener"
+              class="inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 text-white font-500">
+              📝 เปิด Google Doc
+           </a>
+         </div>
+       </div>`,
+    showConfirmButton: true,
+    confirmButtonText: 'ปิด',
+    confirmButtonColor: '#2563EB',
+    customClass: { popup: 'font-sans' }
+  });
 }
 
 
