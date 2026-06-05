@@ -17,7 +17,7 @@
 const CONFIG = {
   // 🔴 วาง URL ของ Google Apps Script Web App ที่ Deploy แล้วตรงนี้
   // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx..../exec'
-  API_URL: 'https://script.google.com/macros/s/AKfycbyzHQIfu6jJAp6f2kKBLQfl-zIqEEPzx-6GgXN1Gj6zrtFhfRLd45kEbLZOELc_-Xsu/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwvXs1IUVSwzYNC6i_UxZNcs-vlpo9uANaEpPyzXW_XROoOlZBX7cRemLSxdPs0kYaQ/exec',
 
   SESSION_KEY: 'care_session_v1',
   SYSTEM_NAME: 'ระบบดูแลผู้มีภาวะพึ่งพิงในชุมชน',
@@ -2460,25 +2460,30 @@ async function exportCgMonthlyReport() {
     icon: 'success',
     title: 'สร้างรายงานสำเร็จ',
     html:
-      `<div class="text-left text-sm leading-relaxed">
-         <div><b>CG :</b> ${esc(d.caregiverName || '-')}</div>
-         <div><b>ประจำเดือน :</b> ${esc(d.period || '-')}</div>
-         <div><b>จำนวนเคสในรายงาน :</b> ${esc(d.visitsCount || 0)} เคส</div>
-         <div class="flex flex-col gap-2 mt-4">
+      `<div class="text-left text-sm leading-relaxed text-ink">
+         <div class="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1.5 mb-4">
+           <span class="text-muted">CG</span>            <span class="font-500">${esc(d.caregiverName || '-')}</span>
+           <span class="text-muted">ประจำเดือน</span>     <span class="font-500">${esc(d.period || '-')}</span>
+           <span class="text-muted">จำนวนเคส</span>       <span class="font-500">${esc(d.visitsCount || 0)} เคส</span>
+         </div>
+         <div class="flex flex-col gap-2">
            <a href="${esc(d.pdfUrl)}" target="_blank" rel="noopener"
-              class="inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-500 text-white font-500">
-              📄 เปิดไฟล์ PDF
+              class="btn inline-flex items-center justify-center gap-2 h-11 rounded-2xl text-white font-500"
+              style="background:linear-gradient(135deg,#FF453A 0%,#D70015 100%);box-shadow:0 4px 14px rgba(255,69,58,.32);">
+              <i data-lucide="file-text" class="w-5 h-5"></i> เปิดไฟล์ PDF
            </a>
            <a href="${esc(d.docUrl)}" target="_blank" rel="noopener"
-              class="inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-blue-600 text-white font-500">
-              📝 เปิด Google Doc
+              class="btn inline-flex items-center justify-center gap-2 h-11 rounded-2xl text-white font-500"
+              style="background:linear-gradient(135deg,#0A84FF 0%,#0066CC 100%);box-shadow:0 4px 14px rgba(10,132,255,.32);">
+              <i data-lucide="file-edit" class="w-5 h-5"></i> เปิด Google Doc
            </a>
          </div>
        </div>`,
     showConfirmButton: true,
     confirmButtonText: 'ปิด',
-    confirmButtonColor: '#2563EB',
-    customClass: { popup: 'font-sans' }
+    confirmButtonColor: '#0A84FF',
+    customClass: { popup: 'font-sans', htmlContainer: 'font-sans' },
+    didRender: () => refreshIcons()
   });
 }
 
